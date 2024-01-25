@@ -82,6 +82,7 @@ struct ffva_decoder_s {
     std::condition_variable codec_type_cv;
     std::vector<uint8_t> rtsp_dec_buffer;
     AVCodecID rtsp_dec_codec_type_id;
+    uint32_t first_code_flag;
 };
 
 /* ------------------------------------------------------------------------ */
@@ -229,7 +230,7 @@ vaapi_init_decoder(FFVADecoder *dec, VAProfile profile, VAEntrypoint entrypoint)
     VASurfaceID *va_surfaces = NULL;
     VAStatus va_status;
     int ret;
-
+    dec->first_code_flag=0;
     va_attrib = &va_attribs[num_va_attribs++];
     va_attrib->type = VAConfigAttribRTFormat;
     va_status = vaGetConfigAttributes(vactx->display, profile, entrypoint,
@@ -589,7 +590,7 @@ decoder_finalize(FFVADecoder *dec)
 
 static int
 decoder_open(FFVADecoder *dec, const char *filename)
-{    
+{
     AVFormatContext *fmtctx;
     AVCodecContext *avctx;
     AVCodec *codec;
@@ -598,8 +599,9 @@ decoder_open(FFVADecoder *dec, const char *filename)
 
     if (dec->state & STATE_OPENED)
         return 0;
-    
+
     const char* prefix = "rtsp://";
+    #if 1
     if (strncmp(filename, prefix, strlen(prefix)) == 0)
     {
         dec->stream = nullptr;
@@ -611,7 +613,7 @@ decoder_open(FFVADecoder *dec, const char *filename)
 
         openURL(*(dec->env), "FFVADecoder", filename, dec->rtsp_packet_queue, dec->rtsp_packet_queue_mutex,
                 dec->rtsp_packet_queue_cv, dec->rtsp_dec_codec_type_id, dec->codec_type_cv);
-        
+
         // env->taskScheduler().doEventLoop(&eventLoopWatchVariable);
 
         std::thread rtsp_thread = std::thread(
@@ -625,9 +627,10 @@ decoder_open(FFVADecoder *dec, const char *filename)
         dec->codec_type_cv.wait(lck);
         lck.unlock();
 
-        dec->isrtsp = true;    
+        dec->isrtsp = true;
         decoder_init_avctx(dec, dec->rtsp_dec_codec_type_id);
     }
+    #endif
     else
     {
         // Open and identify media file
@@ -746,20 +749,40 @@ decode_packet(FFVADecoder *dec, AVPacket *packet, int *got_frame_ptr)
     if (!got_frame_ptr)
         got_frame_ptr = &got_frame;
 
-    // static std::ofstream f("test.h264", std::ios::binary);
-    // f.write((char*)packet->data, packet->size);
-    // printf("packet size: %d\n", packet->size);
+    //static std::ofstream f("test.h264", std::ios::binary);
+   // f.write((char*)packet->data, packet->size);
+   // printf("packet size: %d\n", packet->size);
+   #if 0
+    if(dec->rtsp_dec_codec_type_id==AV_CODEC_ID_H264){
+    unsigned char naltype = ( (unsigned char)packet->data[4] & 0x1F);
+    if(naltype==7||naltype==8&&(!dec->first_code_flag))
+   {
+        if(naltype==8){
+            dec->first_code_flag=1;
+        }
+        ret = avcodec_decode_video2(dec->avctx, dec->frame, got_frame_ptr, packet);
+    }
+    if((naltype!=7)&&(naltype!=8)&&(dec->first_code_flag)){
+        ret = avcodec_decode_video2(dec->avctx, dec->frame, got_frame_ptr, packet);
+    }
+        }
+    else{
+        ret = avcodec_decode_video2(dec->avctx, dec->frame, got_frame_ptr, packet);
+   }
+    #else
     ret = avcodec_decode_video2(dec->avctx, dec->frame, got_frame_ptr, packet);
+    #endif
     if (ret < 0)
-        goto error_decode_frame;
+        return ret;
+        // goto error_decode_frame;
     if (*got_frame_ptr)
         return handle_frame(dec, dec->frame);
     return AVERROR(EAGAIN);
 
     /* ERRORS */
-error_decode_frame:
-    av_log(dec, AV_LOG_ERROR, "decode_packet failed to decode frame: %s\n",
-        ffmpeg_strerror(ret, errbuf));
+//error_decode_frame:
+  //  av_log(dec, AV_LOG_ERROR, "decode_packet failed to decode frame: %s\n",
+  //      ffmpeg_strerror(ret, errbuf));
     return ret;
 }
 
@@ -769,7 +792,6 @@ decoder_run(FFVADecoder *dec)
     AVPacket packet;
     char errbuf[BUFSIZ];
     int got_frame, ret, read_frame_ret;
-
     av_init_packet(&packet);
     packet.data = NULL;
     packet.size = 0;
@@ -802,7 +824,7 @@ decoder_run(FFVADecoder *dec)
                     play_dur = (double)duration.count() / 1000.0;
                 }
             }
-            
+
         }
         else
         {
@@ -813,11 +835,10 @@ decoder_run(FFVADecoder *dec)
             dec->rtsp_packet_queue_cv.wait(lck, [dec]
                             { return !(dec->rtsp_packet_queue.empty()); });
 
-            
+
             dec->rtsp_dec_buffer = std::move(dec->rtsp_packet_queue.front());
             dec->rtsp_packet_queue.pop();
             lck.unlock();
-
             packet.data = dec->rtsp_dec_buffer.data();
             packet.size = dec->rtsp_dec_buffer.size();
         }
@@ -838,25 +859,25 @@ decoder_run(FFVADecoder *dec)
             else
                 ret = AVERROR(EAGAIN);
         }
-        
+
         av_free_packet(&packet);
     } while (ret == AVERROR(EAGAIN));
     if (ret == 0)
     {
-        printf("decode run finished\n");
+        //printf("decode run finished\n");
         return 0;
     }
-
+#if 0
     // Decode cached frames
-    // packet.data = NULL;
-    // packet.size = 0;
-    // ret = decode_packet(dec, &packet, &got_frame);
-    // if (ret == AVERROR(EAGAIN) && !got_frame)
-    // {
-    //     printf("decode run may be finished\n");
-    //     ret = AVERROR_EOF;
-    // }
-        
+    packet.data = NULL;
+    packet.size = 0;
+    ret = decode_packet(dec, &packet, &got_frame);
+    if (ret == AVERROR(EAGAIN) && !got_frame)
+    {
+        printf("decode run may be finished\n");
+        ret = AVERROR_EOF;
+    }
+#endif
     return ret;
 
     /* ERRORS */
@@ -1036,7 +1057,7 @@ ffva_decoder_get_frame(FFVADecoder *dec, FFVADecoderFrame **out_frame_ptr)
 {
     if (!dec || !out_frame_ptr)
         return AVERROR(EINVAL);
-    printf("ffva_decoder_get_frame\n");
+    //printf("ffva_decoder_get_frame\n");
     return decoder_get_frame(dec, out_frame_ptr);
 }
 

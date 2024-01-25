@@ -42,6 +42,20 @@
 #if USE_EGL
 # include "ffvarenderer_egl.h"
 #endif
+#define OUTTHREAD
+#ifdef OUTTHREAD
+#include <threads.h>
+#include <pthread.h>
+#include <ctype.h>
+#endif
+
+#ifdef  OUTTHREAD
+mtx_t                   mutex;
+static int quit_flag=0;
+static int output_thread_run=1;
+pthread_t *output_thread = NULL;
+#define MAX_LINE_LENGTH 200
+#endif
 
 // Default window size
 #define DEFAULT_WIDTH  640
@@ -91,6 +105,7 @@ typedef struct {
     FFVARenderer *renderer;
     uint32_t renderer_width;
     uint32_t renderer_height;
+    uint32_t quit_flag;
 } App;
 
 #define OFFSET(x) offsetof(App, options.x)
@@ -130,6 +145,30 @@ static const AVOption app_options[] = {
 static void
 app_free(App *app);
 
+char* getInput(char line[], size_t len)
+{
+   printf ("--------按q退出程序-------\n");
+   return fgets(line, len, stdin);
+}
+
+#if 1
+static void* wrapper_output_thread(void*arg)
+{
+       char line[MAX_LINE_LENGTH];
+       App *app=(App *)arg;
+    while(getInput(line, sizeof(line))){
+
+         if ( toupper(line[0]) == 'Q' ){
+            mtx_lock(&mutex);
+            app->quit_flag=1;
+            mtx_unlock(&mutex);
+            break;
+         }
+
+    }
+}
+
+#endif
 static const char *
 get_basename(const char *filename)
 {
@@ -294,7 +333,7 @@ app_ensure_filter_surface(App *app, uint32_t width, uint32_t height)
     attrib.type = VASurfaceAttribPixelFormat;
     attrib.value.type = VAGenericValueTypeInteger;
     attrib.value.value.i = app->filter_fourcc;
-    
+
     va_destroy_surface(app->va_display, &s->id);
     av_log(NULL, AV_LOG_ERROR, "filter vaCreateSurfaces  : %x    \n", app->va_display);
     va_status = vaCreateSurfaces(app->va_display, app->filter_chroma,
@@ -450,6 +489,12 @@ app_render_frame(App *app, FFVADecoderFrame *dec_frame)
     return 0;
 }
 
+static bool
+app_render_widow_close(App *app)
+{
+    return ffva_render_get_signal_window_close(app->renderer);
+}
+
 static int
 app_decode_frame(App *app)
 {
@@ -503,7 +548,20 @@ app_list_info(App *app)
     }
     return list_info;
 }
-
+#if 0
+static void* wrapper_output_thread(void*arg)
+{
+    bool ret=false;
+    App *app=(App *)arg;
+    ret=app_render_widow_close(app);
+    if(ret==true)
+    {
+      //  mtx_lock(&mutex);
+        app->quit_flag=1;
+      //  mtx_unlock(&mutex);
+    }
+}
+#endif
 static bool
 app_run(App *app)
 {
@@ -539,10 +597,24 @@ app_run(App *app)
 
     if (!ffva_decoder_get_info(app->decoder, &info))
         return false;
-
+#ifdef OUTTHREAD
+       if (!output_thread) {
+            output_thread_run = 1;
+            output_thread = (pthread_t *)calloc(1, sizeof(pthread_t));
+            if(output_thread==NULL){
+                printf("out_thread is null !----\n");
+                return false;
+            }
+            pthread_create(output_thread, NULL, wrapper_output_thread, app);
+          }
+#endif
     do {
         ret = app_decode_frame(app);
         ret = 0;
+        if(app->quit_flag==1){
+            printf("receive quit signal \n");
+            break;
+        }
     } while (ret == 0 || ret == AVERROR(EAGAIN));
     if (ret != AVERROR_EOF)
         goto error_decode_frame;
@@ -647,11 +719,20 @@ main(int argc, char *argv[])
     }
 
     app = app_new();
+
+
     if (!app || !app_parse_options(app, argc, argv) || !app_run(app))
         goto cleanup;
     ret = EXIT_SUCCESS;
 
 cleanup:
     app_free(app);
+#ifdef OUTTHREAD
+    if(output_thread) {
+        pthread_join(*output_thread, NULL);
+	    free(output_thread);
+        output_thread = NULL;
+    }
+#endif
     return ret;
 }

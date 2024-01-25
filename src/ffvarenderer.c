@@ -177,3 +177,12 @@ ffva_renderer_get_visual_id(FFVARenderer *rnd)
     klass = FFVA_RENDERER_GET_CLASS(rnd);
     return klass->get_visual_id ? klass->get_visual_id(rnd) : 0;
 }
+
+bool
+ffva_render_get_signal_window_close(FFVARenderer *rnd){
+     FFVARendererClass *klass;
+     if (!rnd)
+         return 0;
+     klass=FFVA_RENDERER_GET_CLASS(rnd);
+     return klass->widow_close(rnd);
+}

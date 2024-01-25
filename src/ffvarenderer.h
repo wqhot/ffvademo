@@ -71,4 +71,7 @@ ffva_renderer_get_native_display(FFVARenderer *rnd);
 void *
 ffva_renderer_get_native_window(FFVARenderer *rnd);
 
+bool
+ffva_render_get_signal_window_close(FFVARenderer *rnd);
+
 #endif /* FFVA_RENDERER_H */

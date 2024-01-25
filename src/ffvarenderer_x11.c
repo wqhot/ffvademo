@@ -28,6 +28,21 @@
 #include "ffvarenderer_x11.h"
 #include "ffvarenderer_priv.h"
 #include "ffvadisplay_priv.h"
+#include <pthread.h>
+#include <stdbool.h>
+#include <unistd.h>
+
+Bool CheckCloseEvent(Display *display, XEvent *event, XPointer arg) {
+    return (event->type == ClientMessage) && ((Atom) event->xclient.data.l[0] == XInternAtom(display, "WM_DELETE_WINDOW", False));
+}
+
+bool IsWindowClosed(Display *display, Window window) {
+    XEvent event;
+    if (XCheckIfEvent(display, &event, CheckCloseEvent, (XPointer) NULL)) {
+        return true;
+    }
+    return false;
+}
 
 struct ffva_renderer_x11_s {
     FFVARenderer base;
@@ -43,8 +58,11 @@ struct ffva_renderer_x11_s {
     Window window;
     uint32_t window_width;
     uint32_t window_height;
+    uint32_t window_width_orig;
+    uint32_t window_height_orig;
     bool is_fullscreen;
     bool is_fullscreen_changed;
+    pthread_mutex_t mutex;
 };
 
 static const uint32_t x11_event_mask = (
@@ -60,6 +78,7 @@ static const uint32_t x11_event_mask = (
 // X error trap
 static int x11_error_code = 0;
 static int (*old_error_handler)(Display *, XErrorEvent *);
+Atom wmDeleteWindow;
 
 static int
 error_handler(Display *dpy, XErrorEvent *error)
@@ -89,7 +108,6 @@ x11_get_geometry(Display *dpy, Drawable drawable, int *x_ptr, int *y_ptr,
     Window rootwin;
     int x, y;
     unsigned int width, height, bw, depth;
-
     x11_trap_errors();
     XGetGeometry(dpy, drawable, &rootwin, &x, &y, &width, &height, &bw, &depth);
     if (x11_untrap_errors())
@@ -147,7 +165,8 @@ window_create(FFVARendererX11 *rnd, uint32_t width, uint32_t height)
         XFree(vi);
     if (!rnd->window)
         goto error_create_window;
-
+ //   wmDeleteWindow = XInternAtom(rnd->display, "WM_DELETE_WINDOW", True);
+  //  XSetWMProtocols(rnd->display, rnd->window, &wmDeleteWindow, 1);
     XSelectInput(rnd->display, rnd->window, x11_event_mask);
     XMapWindow(rnd->display, rnd->window);
 
@@ -190,6 +209,7 @@ renderer_init(FFVARendererX11 *rnd, uint32_t flags)
     rnd->root_window = RootWindow(rnd->display, rnd->screen);
     rnd->black_pixel = BlackPixel(rnd->display, rnd->screen);
     rnd->white_pixel = WhitePixel(rnd->display, rnd->screen);
+    pthread_mutex_init(&rnd->mutex,NULL);
     return true;
 }
 
@@ -212,7 +232,7 @@ renderer_get_size(FFVARendererX11 *rnd, uint32_t *width_ptr,
     uint32_t *height_ptr)
 {
     bool success;
-
+    XEvent event;
     if (rnd->is_fullscreen_changed) {
         XFlush(rnd->display);
         XSync(rnd->display, False);
@@ -222,10 +242,44 @@ renderer_get_size(FFVARendererX11 *rnd, uint32_t *width_ptr,
         if (!success)
             return false;
     }
-    success = x11_get_geometry(rnd->display, rnd->window, NULL, NULL,
-        &rnd->window_width, &rnd->window_height);
-    if (!success)
+    #if 0
+    XWindowAttributes window_attrs;
+    int revert_to=0;
+    XGetInputFocus(rnd->display, &rnd->window, &revert_to);
+    if (XGetWindowAttributes(rnd->display, rnd->window, &window_attrs) == 0) {
+        fprintf(stderr, "Failed to get window attributes\n");
+        XCloseDisplay(rnd->display);
+        return 1;
+    }
+    if (window_attrs.map_state == IsViewable) {
+        printf("Window is open\n");
+    } else {
+        printf("Window is closed\n");
         return false;
+    }
+    #endif
+        if (!rnd->display || !rnd->window)
+        {
+            return false;
+        }
+        if(XCheckMaskEvent(rnd->display, StructureNotifyMask, &event)) {
+        // 处理事件
+        if (event.type == DestroyNotify) {
+            return false;
+        }
+        }
+        //pthread_mutex_lock(&rnd->mutex);
+#if 1
+    x11_trap_errors();
+    if(rnd->display){
+        XFlush(rnd->display);
+        XSync(rnd->display, False);
+        success = x11_get_geometry(rnd->display, rnd->window, NULL, NULL,
+            &rnd->window_width, &rnd->window_height);
+        if (!success)
+         return false;
+    }
+#endif
     if (width_ptr)
         *width_ptr = rnd->window_width;
     if (height_ptr)
@@ -252,10 +306,25 @@ renderer_put_surface(FFVARendererX11 *rnd, FFVASurface *surface,
 {
     VADisplay const va_display = rnd->base.display->va_display;
     VAStatus va_status;
-
+    int revert_to=0;
     if (!va_display || !rnd->window)
         return false;
+#if 0
+    XWindowAttributes window_attrs;
+    XGetInputFocus(rnd->display, &rnd->window, &revert_to);
+    if (XGetWindowAttributes(rnd->display, rnd->window, &window_attrs) == 0) {
+        fprintf(stderr, "Failed to get window attributes\n");
+        XCloseDisplay(rnd->display);
+        return 1;
+    }
 
+    if (window_attrs.map_state == IsViewable) {
+        printf("Window is open\n");
+    } else {
+        printf("Window is closed\n");
+        goto error_put_surface;
+    }
+#endif
     va_status = vaPutSurface(va_display, surface->id, rnd->window,
         src_rect->x, src_rect->y, src_rect->width, src_rect->height,
         dst_rect->x, dst_rect->y, dst_rect->width, dst_rect->height,
@@ -271,6 +340,36 @@ error_put_surface:
     return false;
 }
 
+#if 1
+static bool
+render_window_close(FFVARendererX11 *rnd)
+{
+    //XSelectInput(rnd->display, rnd->window, StructureNotifyMask);
+
+    sleep(3);
+    while(1)
+    {
+        XEvent event;
+        if (!rnd->display || !rnd->window)
+        {
+            continue;
+        }
+        if(XCheckMaskEvent(rnd->display, StructureNotifyMask, &event)) {
+        // 处理事件
+        if (event.type == DestroyNotify) {
+            break;
+        }
+            }
+        //pthread_mutex_lock(&rnd->mutex);
+       // XNextEvent(rnd->display, &event);
+//        if (event.type == ClientMessage && event.xclient.data.l[0] == WM_DELETE_WINDOW) {
+          //  break;
+     //   }
+        //pthread_mutex_unlock(&rnd->mutex);
+    }
+    return true;
+}
+#endif
 static const FFVARendererClass *
 ffva_renderer_x11_class(void)
 {
@@ -288,6 +387,7 @@ ffva_renderer_x11_class(void)
         .get_size       = (FFVARendererGetSizeFunc)renderer_get_size,
         .set_size       = (FFVARendererSetSizeFunc)renderer_set_size,
         .put_surface    = (FFVARendererPutSurfaceFunc)renderer_put_surface,
+        .widow_close    = (FFVARendererWindowcloseFunc)render_window_close,
     };
     return &g_class;
 }
