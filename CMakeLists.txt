@@ -51,7 +51,7 @@ file(GLOB Souce_files
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvadisplay.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvafilter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvarenderer_drm.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvarenderer_egl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvarenderer_egl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvarenderer_x11.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvarenderer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvasurface.c

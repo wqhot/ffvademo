@@ -19,7 +19,8 @@
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301
  */
-
+extern "C"
+{
 #include "sysdeps.h"
 #include <unistd.h>
 #include <EGL/egl.h>
@@ -36,6 +37,8 @@
 #if USE_X11
 # include "ffvarenderer_x11.h"
 #endif
+}
+
 
 /* Define the VA buffer memory type to use. 0:let the driver decide */
 #ifndef VA_BUFFER_MEMORY_TYPE
@@ -377,7 +380,7 @@ egl_program_new(const char *frag_shader_text, const char *vert_shader_text)
     GLsizei msglen;
     GLint status;
 
-    program = calloc(1, sizeof(*program));
+    program = (EglProgram *)calloc(1, sizeof(*program));
     if (!program)
         return NULL;
 
@@ -525,7 +528,7 @@ ensure_display(FFVARendererEGL *rnd)
     const char *str;
 
     if (!egl->display) {
-        egl->display = eglGetDisplay(rnd->native_display);
+        egl->display = eglGetDisplay((EGLNativeDisplayType)rnd->native_display);
         if (!egl->display)
             goto error_create_display;
     }
