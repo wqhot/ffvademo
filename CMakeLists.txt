@@ -41,6 +41,7 @@ include_directories(
     ${CMAKE_FIND_ROOT_PATH}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${live555Includes}
+    ${CMAKE_CURRENT_SOURCE_DIR}/ext/stb
 )
 
 

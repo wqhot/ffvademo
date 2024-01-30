@@ -33,7 +33,7 @@ extern "C"
 #include "ffvafilter.h"
 #include "ffvarenderer_egl.h"
 #include "ffvarenderer_priv.h"
-
+#include <stb_image.h>
 #if USE_X11
 # include "ffvarenderer_x11.h"
 #endif
@@ -1488,6 +1488,11 @@ renderer_put_surface(FFVARendererEGL *rnd, FFVASurface *surface,
     return !has_errors;
 }
 
+static bool renderer_load_image(FFVARenderer *rnd, const char *image_path, float x, float y, float w, float h)
+{
+    return true;
+}
+
 static const FFVARendererClass *
 ffva_renderer_egl_class(void)
 {
@@ -1506,6 +1511,7 @@ ffva_renderer_egl_class(void)
         .get_size       = (FFVARendererGetSizeFunc)renderer_get_size,
         .set_size       = (FFVARendererSetSizeFunc)renderer_set_size,
         .put_surface    = (FFVARendererPutSurfaceFunc)renderer_put_surface,
+        .renderer_load_image = (FFVARendererLoadImageFunc)renderer_load_image,
     };
     return &g_class;
 }
