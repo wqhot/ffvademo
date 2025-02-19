@@ -40,6 +40,9 @@ extern "C"
 #endif
 }
 
+#include <unordered_map>
+#include <freetype2/ft2build.h>
+#include FT_FREETYPE_H
 
 /* Define the VA buffer memory type to use. 0:let the driver decide */
 #ifndef VA_BUFFER_MEMORY_TYPE
@@ -182,7 +185,25 @@ typedef struct image_overlay {
     int crop_y1;
     unsigned char* data;
     EglProgram *program;
+    bool is_text;
 } image_overlay;
+
+typedef struct char_font {
+    image_overlay *image;
+    GLuint Size_w;    // Size of glyph
+    GLuint Size_h;
+    GLuint Bearing_top; // Offset from baseline to left/top of glyph
+    GLuint Bearing_left;
+    GLuint Advance;     // Horizontal offset to advance to next glyph
+} char_font;
+
+typedef struct text_overlay {
+    char_font **chars;
+    int num_chars;
+    FT_Library ft;
+    FT_Face face;
+    bool inited;
+} text_overlay;
 
 struct egl_program_s {
     GLuint program;
@@ -528,6 +549,8 @@ struct ffva_renderer_egl_s {
     FFVAFilter *mesa_filter;
     image_overlay** overlays;
     int num_overlays;
+    text_overlay** text_overlays;
+    int num_text_overlays;
 };
 
 static bool
@@ -670,7 +693,6 @@ ensure_vtable(FFVARendererEGL *rnd)
     }
     return true;
 }
-
 static bool
 ensure_config(FFVARendererEGL *rnd)
 {
@@ -802,6 +824,7 @@ image_overlay* image_overlay_create(const char* filename)
     overlay->crop_x1 = width;
     overlay->crop_y0 = 0;
     overlay->crop_y1 = height;
+    overlay->is_text = false;
     return overlay;
 }
 
@@ -824,6 +847,23 @@ static void create_image_overlay_context(image_overlay* overlay)
     glUseProgram(0);
 }
 
+static void create_image_overlay_context_text(image_overlay* font_image)
+{
+    font_image->program = egl_program_new(frag_shader_text_rgba, vert_shader_image);
+    if (!font_image->program) {
+        free(font_image);
+        printf("Failed to create program\n");
+        return;
+    }
+    glUseProgram(font_image->program->program);
+    glGenTextures(1, &font_image->texture);
+    glBindTexture(GL_TEXTURE_2D, font_image->texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, font_image->width, font_image->height, 
+                0, GL_RED, GL_UNSIGNED_BYTE, font_image->data);
+    gl_texture_init_defaults(font_image->texture, GL_TEXTURE_2D);
+    glUseProgram(0);
+}
+
 static void matrix_multiply(GLfloat *result, GLfloat *a, GLfloat *b)
 {
     for (int i = 0; i < 4; ++i) {
@@ -842,7 +882,14 @@ static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_ove
     EglContext* const egl = &rnd->egl_context;
     if (!overlay->program)
     {
-        create_image_overlay_context(overlay);
+        if (!overlay->is_text)
+        {
+            create_image_overlay_context(overlay);
+        }
+        else
+        {
+            create_image_overlay_context_text(overlay);
+        }
     }
     EglProgram *program;
     GLfloat x0, y0, x1, y1;
@@ -880,10 +927,8 @@ static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_ove
 
     model[0] = overlay->scale;
     model[5] = overlay->scale;
-    static float jiaodu_test = 0;
-    jiaodu_test = jiaodu_test + 0.01;
-    float cos_rot = cos(overlay->rotation + jiaodu_test);
-    float sin_rot = sin(overlay->rotation + jiaodu_test);
+    float cos_rot = cos(overlay->rotation);
+    float sin_rot = sin(overlay->rotation);
 
     GLfloat rot[16] = {
         cos_rot, -sin_rot * aspect_ratio, 0, 0,
@@ -1018,6 +1063,16 @@ renderer_finalize(FFVARendererEGL *rnd)
     ffva_filter_freep(&rnd->mesa_filter);
     va_destroy_surface(rnd->va_display, &rnd->mesa_surface.id);
 }
+
+static void render_text(FFVARendererEGL* rnd, FFVASurface *s, text_overlay* text,
+    const VARectangle *src_rect, const VARectangle *dst_rect) 
+{
+    for(int i = 0; i < text->num_chars; i++)
+    {
+        render_image_overlay(rnd, s, text->chars[i]->image, src_rect, dst_rect);
+    }
+}
+
 
 static uintptr_t
 renderer_get_visual_id(FFVARendererEGL *rnd)
@@ -1627,7 +1682,10 @@ renderer_redraw(FFVARendererEGL *rnd, FFVASurface *s,
     {
         render_image_overlay(rnd, s, rnd->overlays[i],src_rect, dst_rect);
     }
-
+    for (int i = 0; i < rnd->num_text_overlays; i++)
+    {
+        render_text(rnd, s, rnd->text_overlays[i],src_rect, dst_rect);
+    }
     eglSwapBuffers(egl->display, egl->surface);
     return true;
 }
@@ -1680,6 +1738,111 @@ static void image_overlay_set_transform(image_overlay* overlay,
     overlay->rotation = rotation;
 }
 
+static int ToWchar(const char *s, wchar_t *dest)
+{
+    const char *locale = "zh_CN.utf8";
+    const char *src = s;
+    if (src == NULL)
+    {
+        return 0;
+    }
+
+    // 根据环境变量设置locale
+    setlocale(LC_CTYPE, locale);
+    // 得到转化为需要的宽字符大小
+    int w_size = mbstowcs(NULL, src, 0) + 1;
+    // w_size = 0 说明mbstowcs返回值为-1。即在运行过程中遇到了非法字符(很有可能使locale
+    // 没有设置正确)
+    if (w_size == 0)
+    {
+        return -1;
+    }
+    if (dest)
+    {
+        free(dest);
+    }
+    dest = (wchar_t *)malloc(sizeof(wchar_t) * (w_size - 1));
+    int ret = mbstowcs(dest, src, strlen(src));
+    if (ret <= 0)
+    {
+        return -1;
+    }
+
+    int l = 0;
+    while (dest[l] != 0)
+    {
+        l++;
+    }
+    return l;
+}
+
+static bool
+init_text_overlay(text_overlay *text, const char *font, unsigned int font_size)
+{
+    if (text->inited)
+    {
+        return true;
+    }
+    if (FT_Init_FreeType(&text->ft))
+    {
+        return false;
+    }
+    if (FT_New_Face(text->ft, font, 0, &text->face))
+    {
+        printf("Failed to load font %s\n", font);
+        return false;
+    }
+    FT_Set_Pixel_Sizes(text->face, 0, font_size);
+    text->num_chars = 0;
+    text->inited = true;
+}
+
+static bool
+set_text_overlay(text_overlay *text, const char *text_str, float x, float y)
+{
+    wchar_t *wstr = NULL;
+    ToWchar(text_str, wstr);
+    int pos = 0;
+    if (!wstr)
+    {
+        return false;
+    }
+    while (wstr[pos] != 0)
+    {
+        FT_Error err = FT_Load_Char(text->face, wstr[pos], FT_LOAD_RENDER);
+        if (err)
+        {
+            return false;
+        }
+        FT_Render_Glyph(text->face->glyph, FT_RENDER_MODE_NORMAL);
+        image_overlay* font_image = (image_overlay*)calloc(1, sizeof(image_overlay));
+        font_image->width = text->face->glyph->bitmap.width;
+        font_image->height = text->face->glyph->bitmap.rows;
+        font_image->crop_x0 = 0;
+        font_image->crop_x1 = font_image->width;
+        font_image->crop_y0 = 0;
+        font_image->crop_y1 = font_image->height;
+        font_image->scale = 1.0;
+        font_image->rotation = 0.0;
+        font_image->is_text = true;
+        memcpy(font_image->data, text->face->glyph->bitmap.buffer,
+            font_image->width * font_image->height);
+        
+
+        char_font *charf = (char_font*)calloc(1, sizeof(char_font));
+        charf->image = font_image;
+        charf->Size_w = font_image->width;
+        charf->Size_h = font_image->height;
+        charf->Bearing_left = text->face->glyph->bitmap_left;
+        charf->Bearing_top = text->face->glyph->bitmap_top;
+        charf->Advance = text->face->glyph->advance.x;
+        text->chars = (char_font **)realloc(text->chars, (text->num_chars + 1) * sizeof(char_font*));
+        text->chars[text->num_chars] = charf;
+        image_overlay_set_transform(text->chars[text->num_chars]->image, x, y, 1.0, 0.0);
+        text->num_chars = text->num_chars + 1;
+    }
+}
+
 static bool renderer_load_image(FFVARendererEGL *rnd, const char *image_path, float x, float y, float scale, float rotation)
 {
     if (!rnd) 
@@ -1694,6 +1857,19 @@ static bool renderer_load_image(FFVARendererEGL *rnd, const char *image_path, fl
     rnd->overlays[rnd->num_overlays] = overlay;
     image_overlay_set_transform(rnd->overlays[rnd->num_overlays], x, y, scale, rotation);
     rnd->num_overlays = rnd->num_overlays + 1;
+
+    rnd->text_overlays = (text_overlay **)realloc(rnd->text_overlays, (rnd->num_text_overlays + 1) * sizeof(text_overlay*));
+    text_overlay *text = (text_overlay*)calloc(1, sizeof(text_overlay));
+    init_text_overlay(text, "source.otf", 48);
+    set_text_overlay(text, "Hello World!", 0.2, 0.2);
+    if (!text)
+    {
+        av_log(rnd, AV_LOG_ERROR, "failed to create image overlay\n");
+        return false;
+    }
+    rnd->text_overlays[rnd->num_text_overlays] = text;
+    rnd->num_text_overlays = rnd->num_text_overlays + 1;
+
     return true;
 }
 

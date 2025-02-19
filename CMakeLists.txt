@@ -25,6 +25,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 find_package(Threads)
 
+link_directories(${CMAKE_FIND_ROOT_PATH}/lib)
+
 if (PLATFORM STREQUAL "ARM")
     link_directories("${CMAKE_SOURCE_DIR}/ext/ffmpeg_aarch64/lib")
     include_directories("${CMAKE_SOURCE_DIR}/ext/ffmpeg_aarch64/include")
@@ -58,6 +60,7 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${live555Includes}
     ${CMAKE_CURRENT_SOURCE_DIR}/ext/stb
+    ${CMAKE_FIND_ROOT_PATH}/include/freetype2
 )
 
 
@@ -104,6 +107,7 @@ target_link_libraries(${target_name}
    UsageEnvironment
    ssl
    crypto
+   freetype
 )
 
 if (PLATFORM STREQUAL "ARM")
