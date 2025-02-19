@@ -43,6 +43,7 @@ typedef bool (*FFVARendererPutSurfaceFunc)(FFVARenderer *rnd, FFVASurface *s,
     const VARectangle *src_rect, const VARectangle *dst_rect, uint32_t flags);
 typedef bool (*FFVARendererWindowcloseFunc)(FFVARenderer *rnd);
 typedef bool (*FFVARendererLoadImageFunc)(FFVARenderer *rnd, const char *image_path, float x, float y, float scale, float rotate);
+typedef bool (*FFVARendererLoadTextFunc)(FFVARenderer *rnd, const char *font_path, const char *text, int font_size, float x, float y);
 
 struct ffva_renderer_s {
     const void *klass;
@@ -65,6 +66,7 @@ struct ffva_renderer_class_s {
     FFVARendererPutSurfaceFunc put_surface;
     FFVARendererWindowcloseFunc widow_close;
     FFVARendererLoadImageFunc renderer_load_image;
+    FFVARendererLoadTextFunc renderer_load_text;
 };
 
 DLL_HIDDEN

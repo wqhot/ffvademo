@@ -40,6 +40,10 @@ extern "C"
 #endif
 }
 
+#include <unordered_map>
+#include <locale.h>
+#include <freetype2/ft2build.h>
+#include FT_FREETYPE_H
 
 /* Define the VA buffer memory type to use. 0:let the driver decide */
 #ifndef VA_BUFFER_MEMORY_TYPE
@@ -166,12 +170,14 @@ struct egl_context_s {
     bool program_changed;
     GLfloat proj[16];
     bool is_initialized;
+    uint32_t target_width;
+    uint32_t target_height;
 };
 
 typedef struct image_overlay {
     GLuint texture;      // OpenGL纹理ID
-    int width;           // 图片宽度
-    int height;          // 图片高度
+    unsigned int width;           // 图片宽度
+    unsigned int height;          // 图片高度
     float pos_x;         // X坐标 (归一化坐标0-1)
     float pos_y;         // Y坐标 (归一化坐标0-1)
     float scale;         // 缩放比例
@@ -183,6 +189,27 @@ typedef struct image_overlay {
     unsigned char* data;
     EglProgram *program;
 } image_overlay;
+
+typedef struct char_font {
+    image_overlay *image;
+    GLuint Size_w;    // Size of glyph
+    GLuint Size_h;
+    GLuint Bearing_top; // Offset from baseline to left/top of glyph
+    GLuint Bearing_left;
+    GLuint Advance;     // Horizontal offset to advance to next glyph
+    wchar_t c;
+} char_font;
+
+typedef struct text_overlay {
+    char_font **chars;
+    int num_chars;
+    FT_Library ft;
+    FT_Face face;
+    bool inited;
+    int font_size;
+    float pos_x;
+    float pos_y;
+} text_overlay;
 
 struct egl_program_s {
     GLuint program;
@@ -528,6 +555,8 @@ struct ffva_renderer_egl_s {
     FFVAFilter *mesa_filter;
     image_overlay** overlays;
     int num_overlays;
+    text_overlay** text_overlays;
+    int num_text_overlays;
 };
 
 static bool
@@ -670,7 +699,6 @@ ensure_vtable(FFVARendererEGL *rnd)
     }
     return true;
 }
-
 static bool
 ensure_config(FFVARendererEGL *rnd)
 {
@@ -880,10 +908,8 @@ static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_ove
 
     model[0] = overlay->scale;
     model[5] = overlay->scale;
-    static float jiaodu_test = 0;
-    jiaodu_test = jiaodu_test + 0.01;
-    float cos_rot = cos(overlay->rotation + jiaodu_test);
-    float sin_rot = sin(overlay->rotation + jiaodu_test);
+    float cos_rot = cos(overlay->rotation);
+    float sin_rot = sin(overlay->rotation);
 
     GLfloat rot[16] = {
         cos_rot, -sin_rot * aspect_ratio, 0, 0,
@@ -891,7 +917,6 @@ static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_ove
         0,       0,        1, 0,
         0,       0,        0, 1
     };
-    
     matrix_multiply(model_r, rot, model);
 
     program = overlay->program;
@@ -1019,6 +1044,41 @@ renderer_finalize(FFVARendererEGL *rnd)
     va_destroy_surface(rnd->va_display, &rnd->mesa_surface.id);
 }
 
+static void image_overlay_set_transform(image_overlay* overlay, 
+                                        float x, float y, 
+                                        float scale, float rotation) 
+{
+    overlay->pos_x = x;
+    overlay->pos_y = y;
+    overlay->scale = scale;
+    overlay->rotation = rotation;
+}
+
+static void render_text(FFVARendererEGL* rnd, FFVASurface *s, text_overlay* text,
+    const VARectangle *src_rect, const VARectangle *dst_rect) 
+{
+    GLfloat cur_x = 0;
+    GLfloat cur_y = 0;
+    for(int i = 0; i < text->num_chars; i++)
+    {
+        GLfloat pos_x = text->pos_x + (text->chars[i]->Bearing_left + cur_x) / dst_rect->width;
+        GLfloat pos_y = text->pos_y - (text->chars[i]->Size_h - text->chars[i]->Bearing_top - cur_y) / dst_rect->height;
+        cur_x += (text->chars[i]->Advance >> 6);
+        if (text->chars[i]->c == '\n')
+        {
+            cur_x = 0;
+            cur_y -= text->font_size;
+        }
+        if (text->chars[i]->c  < 32)
+        {
+            continue;
+        }
+        image_overlay_set_transform(text->chars[i]->image, pos_x, pos_y, 1.0, 0.0);
+        render_image_overlay(rnd, s, text->chars[i]->image, src_rect, dst_rect);
+    }
+}
+
+
 static uintptr_t
 renderer_get_visual_id(FFVARendererEGL *rnd)
 {
@@ -1050,7 +1110,7 @@ renderer_set_size(FFVARendererEGL *rnd, uint32_t width, uint32_t height)
 
     if (!ensure_context(rnd))
         return false;
-    glViewport(0, 0, width, height);
+    // glViewport(0, 0, width, height);
     egl->surface_width = width;
     egl->surface_height = height;
     return true;
@@ -1552,6 +1612,8 @@ renderer_redraw(FFVARendererEGL *rnd, FFVASurface *s,
     GLfloat x0, y0, x1, y1;
     GLfloat texcoords[4][2];
     GLfloat positions[4][2];
+    rnd->egl_context.target_width = dst_rect->width;
+    rnd->egl_context.target_height = dst_rect->height;
     uint32_t i;
 
     // Source coords in VA surface
@@ -1565,18 +1627,17 @@ renderer_redraw(FFVARendererEGL *rnd, FFVASurface *s,
     texcoords[3][0] = x0; texcoords[3][1] = y0;
 
     // Target coords in EGL surface
-    x0 =  2.0f * ((GLfloat)dst_rect->x / egl->surface_width) - 1.0f;
-    y1 = -2.0f * ((GLfloat)dst_rect->y / egl->surface_height) + 1.0f;
-    x1 =  2.0f * ((GLfloat)(dst_rect->x + dst_rect->width) /
-        egl->surface_width) - 1.0f;
-    y0 = -2.0f * ((GLfloat)(dst_rect->y + dst_rect->height) /
-        egl->surface_height) + 1.0f;
+    x0 = -1.0f;
+    y1 =  1.0f;
+    x1 =  1.0f;
+    y0 = -1.0f;
     positions[0][0] = x0; positions[0][1] = y0;
     positions[1][0] = x1; positions[1][1] = y0;
     positions[2][0] = x1; positions[2][1] = y1;
     positions[3][0] = x0; positions[3][1] = y1;
-
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    glViewport(0, 0, dst_rect->width, dst_rect->height);
 
 #if USE_GLES_VERSION == 1
     glBindTexture(egl->tex_target, egl->textures[0]);
@@ -1627,7 +1688,10 @@ renderer_redraw(FFVARendererEGL *rnd, FFVASurface *s,
     {
         render_image_overlay(rnd, s, rnd->overlays[i],src_rect, dst_rect);
     }
-
+    for (int i = 0; i < rnd->num_text_overlays; i++)
+    {
+        render_text(rnd, s, rnd->text_overlays[i],src_rect, dst_rect);
+    }
     eglSwapBuffers(egl->display, egl->surface);
     return true;
 }
@@ -1670,14 +1734,121 @@ renderer_put_surface(FFVARendererEGL *rnd, FFVASurface *surface,
     return !has_errors;
 }
 
-static void image_overlay_set_transform(image_overlay* overlay, 
-                                        float x, float y, 
-                                        float scale, float rotation) 
+static wchar_t *ToWchar(const char *s)
 {
-    overlay->pos_x = x;
-    overlay->pos_y = y;
-    overlay->scale = scale;
-    overlay->rotation = rotation;
+    const char *locale = "zh_CN.utf8";
+    const char *src = s;
+    if (src == NULL)
+    {
+        return NULL;
+    }
+
+    // 根据环境变量设置locale
+    setlocale(LC_CTYPE, locale);
+    // 得到转化为需要的宽字符大小
+    int w_size = mbstowcs(NULL, src, 0) + 1;
+    // w_size = 0 说明mbstowcs返回值为-1。即在运行过程中遇到了非法字符(很有可能使locale
+    // 没有设置正确)
+    if (w_size == 0)
+    {
+        return NULL;
+    }
+    wchar_t *dest = (wchar_t *)malloc(sizeof(wchar_t) * (w_size + 1));
+    int ret = mbstowcs(dest, src, strlen(src));
+    dest[w_size] = 0;
+    if (ret <= 0)
+    {
+        return NULL;
+    }
+
+    int l = 0;
+    while (dest[l] != 0)
+    {
+        l++;
+    }
+    return dest;
+}
+
+static bool
+init_text_overlay(text_overlay *text, const char *font, unsigned int font_size)
+{
+    if (text->inited)
+    {
+        return true;
+    }
+    if (FT_Init_FreeType(&text->ft) != 0)
+    {
+        printf("Failed to init freetype\n");
+        return false;
+    }
+    if (FT_New_Face(text->ft, font, 0, &text->face))
+    {
+        printf("Failed to load font %s\n", font);
+        return false;
+    }
+    FT_Set_Pixel_Sizes(text->face, 0, font_size);
+    text->num_chars = 0;
+    text->inited = true;
+    text->font_size = font_size;
+}
+
+static bool
+set_text_overlay(FFVARendererEGL *rnd, text_overlay *text, const char *text_str, float x, float y)
+{
+    wchar_t *wstr = ToWchar(text_str);
+    // FFVA
+    int pos = 0;
+    if (!wstr)
+    {
+        return false;
+    }
+    GLfloat cur_x = x;
+    GLfloat cur_y = y;
+    text->pos_x = x;
+    text->pos_y = y;
+    while (wstr[pos] != 0)
+    {
+        FT_Error err = FT_Load_Char(text->face, wstr[pos], FT_LOAD_RENDER);
+        if (err)
+        {
+            return false;
+        }
+        FT_Render_Glyph(text->face->glyph, FT_RENDER_MODE_NORMAL);
+        image_overlay* font_image = (image_overlay*)calloc(1, sizeof(image_overlay));
+        font_image->width = text->face->glyph->bitmap.width;
+        font_image->height = text->face->glyph->bitmap.rows;
+        font_image->crop_x0 = 0;
+        font_image->crop_x1 = font_image->width;
+        font_image->crop_y0 = 0;
+        font_image->crop_y1 = font_image->height;
+        font_image->scale = 1.0;
+        font_image->rotation = 0.0;
+        font_image->data = (unsigned char*)malloc(font_image->width * font_image->height * 4);
+        for (int i = 0; i < font_image->height; i++)
+        {
+            for (int j = 0; j < font_image->width; j++)
+            {
+                font_image->data[i * font_image->width * 4 + j * 4 + 0] = 255;
+                font_image->data[i * font_image->width * 4 + j * 4 + 1] = 255;
+                font_image->data[i * font_image->width * 4 + j * 4 + 2] = 255;
+                font_image->data[i * font_image->width * 4 + j * 4 + 3] = text->face->glyph->bitmap.buffer[i * font_image->width + j];
+            }
+        }
+        char_font *charf = (char_font*)calloc(1, sizeof(char_font));
+        charf->c = wstr[pos];
+        charf->image = font_image;
+        charf->Size_w = font_image->width;
+        charf->Size_h = font_image->height;
+        charf->Bearing_left = text->face->glyph->bitmap_left;
+        charf->Bearing_top = text->face->glyph->bitmap_top;
+        charf->Advance = text->face->glyph->advance.x;
+        text->chars = (char_font **)realloc(text->chars, (text->num_chars + 1) * sizeof(char_font*));
+        text->chars[text->num_chars] = charf;
+        image_overlay_set_transform(text->chars[text->num_chars]->image, x, y, 1.0, 0.0);
+        text->num_chars = text->num_chars + 1;
+        cur_x += (charf->Advance >> 6);
+        pos++;
+    }
 }
 
 static bool renderer_load_image(FFVARendererEGL *rnd, const char *image_path, float x, float y, float scale, float rotation)
@@ -1694,6 +1865,24 @@ static bool renderer_load_image(FFVARendererEGL *rnd, const char *image_path, fl
     rnd->overlays[rnd->num_overlays] = overlay;
     image_overlay_set_transform(rnd->overlays[rnd->num_overlays], x, y, scale, rotation);
     rnd->num_overlays = rnd->num_overlays + 1;
+    return true;
+}
+
+static bool renderer_load_text(FFVARendererEGL *rnd, const char *font_path, const char *text_context, int font_size, float x, float y)
+{
+    if (!rnd) 
+        return false;
+    rnd->text_overlays = (text_overlay **)realloc(rnd->text_overlays, (rnd->num_text_overlays + 1) * sizeof(text_overlay*));
+    text_overlay *text = (text_overlay*)calloc(1, sizeof(text_overlay));
+    init_text_overlay(text, font_path, font_size);
+    set_text_overlay(rnd, text, text_context, x, y);
+    if (!text)
+    {
+        av_log(rnd, AV_LOG_ERROR, "failed to create image overlay\n");
+        return false;
+    }
+    rnd->text_overlays[rnd->num_text_overlays] = text;
+    rnd->num_text_overlays = rnd->num_text_overlays + 1;
     return true;
 }
 
@@ -1716,6 +1905,7 @@ ffva_renderer_egl_class(void)
         .set_size       = (FFVARendererSetSizeFunc)renderer_set_size,
         .put_surface    = (FFVARendererPutSurfaceFunc)renderer_put_surface,
         .renderer_load_image = (FFVARendererLoadImageFunc)renderer_load_image,
+        .renderer_load_text = (FFVARendererLoadTextFunc)renderer_load_text,
     };
     return &g_class;
 }

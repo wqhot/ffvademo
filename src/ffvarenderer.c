@@ -195,3 +195,12 @@ bool ffva_renderer_load_image(FFVARenderer *rnd, const char *image_path, float x
     klass=FFVA_RENDERER_GET_CLASS(rnd);
     return klass->renderer_load_image(rnd, image_path, x, y, scale, rotation);
 }
+
+bool ffva_renderer_load_text(FFVARenderer *rnd, const char *font_path, const char *text_context, int font_size, float x, float y)
+{
+    FFVARendererClass *klass;
+    if (!rnd)
+        return 0;
+    klass=FFVA_RENDERER_GET_CLASS(rnd);
+    return klass->renderer_load_text(rnd, font_path, text_context, font_size, x, y);
+}

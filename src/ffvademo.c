@@ -464,6 +464,12 @@ app_renderer_add_image(App *app, const char *image_path, float x, float y, float
     return ffva_renderer_load_image(app->renderer, image_path, x, y, scale, rotation);
 }
 
+static bool
+app_renderer_add_text(App *app, const char *font_path, const char *text_context, int font_size, float x, float y)
+{
+    return ffva_renderer_load_text(app->renderer, font_path, text_context, font_size, x, y);
+}
+
 static int
 app_render_frame(App *app, FFVADecoderFrame *dec_frame)
 {
@@ -617,6 +623,8 @@ app_run(App *app)
 #endif
 
     app_renderer_add_image(app, "./res/focus.png", 0.5, 0.5, 1.0, 3.14/4);
+    app_renderer_add_text(app, "source.otf", "IHello World!\n中", 48, 0.2, 0.2);
+    app_renderer_add_image(app, "./res/focus_old.png", 0.8, 0.8, 0.8, 3.14/7);
 
     do {
         ret = app_decode_frame(app);
