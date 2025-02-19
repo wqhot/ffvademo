@@ -176,12 +176,11 @@ typedef struct image_overlay {
     float pos_y;         // Y坐标 (归一化坐标0-1)
     float scale;         // 缩放比例
     float rotation;      // 旋转角度(弧度)
-    int crop_x0;
-    int crop_y0;
-    int crop_x1;
-    int crop_y1;
     unsigned char* data;
     EglProgram *program;
+    unsigned int VAO;
+    unsigned int VBO;
+    unsigned int EBO;
 } image_overlay;
 
 struct egl_program_s {
@@ -365,21 +364,33 @@ static const char *frag_shader_text_egl_external =
 #endif
 
 static const char* vert_shader_image =  
-    "#ifdef GL_ES\n"
-    "precision mediump float;\n"
-    "#endif\n"
-    "\n"
-    "uniform mat4 proj;\n"
-    "uniform mat4 model;\n"         // 新增模型矩阵
-    "\n"
-    "attribute vec2 position;\n"
-    "attribute vec2 texcoord;\n"
-    "varying vec2 v_texcoord;\n"
-    "\n"
-    "void main() {\n"
-    "    gl_Position = proj * model * vec4(position, 0.0, 1.0);\n"
-    "    v_texcoord  = texcoord;\n"
-    "}\n";
+    R"(
+        #version 300 es
+        layout(location = 0) in vec3 aVetexCoord;                                   
+        layout(location = 1) in vec2 aTexureCoord;                                  
+        out vec2 vTextureCoord;                            
+        uniform mat4 transform;                                                       
+        void main(void)                                        
+        {                                                      
+            gl_Position = transform * vec4(aVetexCoord, 1.0);    
+            vTextureCoord = aTexureCoord;                      
+        }
+    )";
+
+static const char* frag_shader_image =
+    R"(
+    #version 300 es
+    precision highp float;                                        
+    out vec4 FragColor;                                      
+    in vec2 vTextureCoord;                                   
+    uniform sampler2D uTextureSampler;                            
+    void main(void)                                               
+    {                                                             
+        vec4 color = texture(uTextureSampler, vTextureCoord);                                
+        // FragColor = vec4(color.r, color.g, color.b, color.a);  
+        FragColor = vec4(1,1,0,1);
+    } 
+    )";
 
 #if USE_GLES_VERSION != 1
 static GLuint
@@ -764,7 +775,7 @@ ensure_context(FFVARendererEGL *rnd)
     if (!ensure_vtable(rnd))
         return false;
 
-    glClearColor(0.0, 0.0, 0.0, 0.0);
+    glClearColor(0.0, 0.0, 0.0, 1.0);
 #if USE_GLES_VERSION == 0
     glEnable(GL_TEXTURE_2D);
 #endif
@@ -786,7 +797,6 @@ image_overlay* image_overlay_create(const char* filename)
 {
     int width, height, channels;
     unsigned char* data = stbi_load(filename, &width, &height, &channels, 4);
-    printf("%s: %d x %d x %d\n", filename, width, height, channels);
     if (!data) return NULL;
     image_overlay* overlay = (image_overlay*)calloc(1, sizeof(image_overlay));
     overlay->width = width;
@@ -795,33 +805,71 @@ image_overlay* image_overlay_create(const char* filename)
     overlay->program = NULL;
     overlay->texture = 0;
     overlay->data = data;
-    overlay->pos_x = 0;
-    overlay->pos_y = 0;
-    overlay->rotation = 0.0f;
-    overlay->crop_x0 = 0;
-    overlay->crop_x1 = width;
-    overlay->crop_y0 = 0;
-    overlay->crop_y1 = height;
     return overlay;
 }
 
 static void create_image_overlay_context(image_overlay* overlay)
 {
-    overlay->program = egl_program_new(frag_shader_text_rgba, vert_shader_image);
-    if (!overlay->program) {
-        glDeleteTextures(1, &overlay->texture);
+    float vertices[] = {
+        // 位置          // 纹理坐标
+     1.0f,  1.0f,    1.0f, 0.0f, // 右上
+     1.0f, -1.0f,    1.0f, 1.0f, // 右下
+    -1.0f, -1.0f,    0.0f, 1.0f, // 左下
+    -1.0f,  1.0f,    0.0f, 0.0f  // 左上
+    };
+
+    unsigned int indices[] = {
+        0, 1, 3, // first triangle
+        1, 2, 3  // second triangle
+    };
+    printf("Loaded image data: %p (w:%d h:%d)\n", overlay->data[overlay->width * overlay->height * 2], overlay->width, overlay->height);
+    glGenVertexArrays(1, &(overlay->VAO));
+    glGenBuffers(1, &(overlay->VBO));
+    glGenBuffers(1, &(overlay->EBO));
+
+    glBindVertexArray(overlay->VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, overlay->VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, overlay->EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_DYNAMIC_DRAW);
+
+    overlay->program = egl_program_new(frag_shader_image, vert_shader_image);
+    if (!overlay->program) 
+    {
+        // glDeleteTextures(1, &overlay->texture);
         free(overlay);
-        printf("Failed to create program\n");
+        // av_log(overlay, AV_LOG_ERROR, "failed to complie image program\n");
+        printf("failed to complie image program\n");
         return;
     }
     glUseProgram(overlay->program->program);
-    glGenTextures(1, &overlay->texture);
+    int attribute0_location = glGetAttribLocation(overlay->program->program, "aVetexCoord");
+    glVertexAttribPointer(attribute0_location, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(attribute0_location);
+    // texture coord attribute
+    int attribute1_location = glGetAttribLocation(overlay->program->program, "aTexureCoord");
+    glVertexAttribPointer(attribute1_location, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+    glEnableVertexAttribArray(attribute1_location);
+
+    glGenTextures(1, &(overlay->texture));
     glBindTexture(GL_TEXTURE_2D, overlay->texture);
+
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, overlay->width, overlay->height, 
-                0, GL_RGBA, GL_UNSIGNED_BYTE, overlay->data);
-    gl_texture_init_defaults(overlay->texture, GL_TEXTURE_2D);
+        0, GL_RGBA, GL_UNSIGNED_BYTE, overlay->data);
+    printf("image w%d, h%d\n", overlay->width, overlay->height);
+    // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); // set texture wrapping to GL_REPEAT (default wrapping method)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // set texture filtering parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
     stbi_image_free(overlay->data);
-    glUseProgram(0);
 }
 
 static void matrix_multiply(GLfloat *result, GLfloat *a, GLfloat *b)
@@ -836,91 +884,42 @@ static void matrix_multiply(GLfloat *result, GLfloat *a, GLfloat *b)
     }
 }
 
-static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_overlay* overlay,
-        const VARectangle *src_rect, const VARectangle *dst_rect) 
+static void render_image_overlay(FFVARendererEGL* rnd, image_overlay* overlay) 
 {
     EglContext* const egl = &rnd->egl_context;
     if (!overlay->program)
     {
         create_image_overlay_context(overlay);
     }
-    EglProgram *program;
-    GLfloat x0, y0, x1, y1;
-    GLfloat texcoords[4][2];
-    GLfloat positions[4][2];
-    uint32_t i;
-
-    float aspect_ratio = (float)dst_rect->width / (float)dst_rect->height;
-
-    int overlay_w = overlay->crop_x1 - overlay->crop_x0;
-    int overlay_h = overlay->crop_y1 - overlay->crop_y0;
-
-    // Source coords in VA surface
-    x0 = (GLfloat)overlay->crop_x0 / overlay->width;
-    y0 = (GLfloat)overlay->crop_y0 / overlay->height;
-    x1 = (GLfloat)overlay->crop_x1 / overlay->width;;
-    y1 = (GLfloat)overlay->crop_y1 / overlay->height;
-    texcoords[0][0] = x0; texcoords[0][1] = y1;
-    texcoords[1][0] = x1; texcoords[1][1] = y1;
-    texcoords[2][0] = x1; texcoords[2][1] = y0;
-    texcoords[3][0] = x0; texcoords[3][1] = y0;
-
-    // Target coords in EGL surface
-    x0 =  2.0f * ((GLfloat)overlay->pos_x) - 1.0f;
-    y0 =  2.0f * ((GLfloat)overlay->pos_y) - 1.0f;
-    x1 =  2.0f * ((GLfloat)overlay->pos_x + (GLfloat)overlay_w / dst_rect->width) - 1.0f;
-    y1 =  2.0f * ((GLfloat)overlay->pos_y + (GLfloat)overlay_h / dst_rect->height) - 1.0f;
-    positions[0][0] = x0; positions[0][1] = y0;
-    positions[1][0] = x1; positions[1][1] = y0;
-    positions[2][0] = x1; positions[2][1] = y1;
-    positions[3][0] = x0; positions[3][1] = y1;
-
-    GLfloat model[16], model_r[16];
+    glViewport(overlay->pos_x * egl->surface_width, overlay->pos_y * egl->surface_height, 
+               overlay->scale * overlay->width, overlay->scale * overlay->height);
+    // 计算模型矩阵
+    GLfloat model[16];
     matrix_set_identity(model);
-
-    model[0] = overlay->scale;
-    model[5] = overlay->scale;
-    static float jiaodu_test = 0;
-    jiaodu_test = jiaodu_test + 0.01;
-    float cos_rot = cos(overlay->rotation + jiaodu_test);
-    float sin_rot = sin(overlay->rotation + jiaodu_test);
-
+    
+    // 应用旋转
+    float cos_rot = cos(overlay->rotation);
+    float sin_rot = sin(overlay->rotation);
     GLfloat rot[16] = {
-        cos_rot, -sin_rot * aspect_ratio, 0, 0,
-        sin_rot / aspect_ratio, cos_rot,  0, 0,
+        cos_rot, -sin_rot, 0, 0,
+        sin_rot, cos_rot,  0, 0,
         0,       0,        1, 0,
         0,       0,        0, 1
     };
+    matrix_multiply(model, rot, model);
     
-    matrix_multiply(model_r, rot, model);
-
-    program = overlay->program;
-
-    if (program) {
-        glUseProgram(program->program);
-        glUniformMatrix4fv(program->proj_uniform, 1, GL_FALSE, egl->proj);
-        int model_uniform = glGetUniformLocation(program->program, "model");
-        glUniformMatrix4fv(model_uniform, 1, GL_FALSE, model_r);
-    }
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, positions);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, texcoords);
-
+    glUseProgram(overlay->program->program);
+    glUniformMatrix4fv(glGetUniformLocation(overlay->program->program, "transform"),
+                     1, GL_FALSE, model);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, overlay->texture);
-    if (program)
-        glUniform1i(program->tex_uniforms[0], 0);
+    glBindVertexArray(overlay->VAO);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-    glDisableVertexAttribArray(1);
-    glDisableVertexAttribArray(0);
-
-    if (program)
-        glUseProgram(0);
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, GL_NONE);
+    glUseProgram(0);
+    glViewport(0, 0, egl->surface_width, egl->surface_height);
 }
 
 static bool
@@ -1625,7 +1624,7 @@ renderer_redraw(FFVARendererEGL *rnd, FFVASurface *s,
 #endif
     for (int i = 0; i < rnd->num_overlays; i++) 
     {
-        render_image_overlay(rnd, s, rnd->overlays[i],src_rect, dst_rect);
+        render_image_overlay(rnd, rnd->overlays[i]);
     }
 
     eglSwapBuffers(egl->display, egl->surface);

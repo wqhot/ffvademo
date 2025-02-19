@@ -3,7 +3,7 @@
 # Define the source directory
 SOURCE_DIR="$(dirname $0)"
 
-KYLIN_LIB="${HOME}/libs/cross"
+KYLIN_LIB="${HOME}/cross_libs"
 
 # Define the build directory
 BUILD_DIR="${SOURCE_DIR}/arm_build"
@@ -35,26 +35,28 @@ mkdir -p "$BUILD_DIR/third_party/mpp"
 #            /bin/bash
 
 # Run the docker container and mount the source and build directories
-# docker run -v "$SOURCE_DIR:/project" \
-#            -v "$KYLIN_LIB:/cross" \
-#            -v "$BUILD_DIR:/project/arm_build" \
-#            -w "/project/arm_build" \
-#            -it wqhot/ftbuild:v9.3.2 \
-#            /bin/bash -c "\
-#                 git config --global --add safe.directory /project && \
-#                 cmake -D BUILD_TYPE=RELEASE -D PLATFORM=ARM .. && \
-#                 make -j1
-#               "
-
 docker run -v "$SOURCE_DIR:/project" \
            -v "$KYLIN_LIB:/cross" \
            -v "$BUILD_DIR:/project/arm_build" \
            -w "/project/arm_build" \
-           -it wqhot/ftbuild:v9.3.2 \
-           /bin/bash
+           -it wqhot/gcc9_aarch64:v1.3 \
+           /bin/bash -c "\
+                git config --global --add safe.directory /project && \
+                cmake -D CMAKE_BUILD_TYPE=DEBUF -D PLATFORM=ARM .. && \
+                make -j2
+              "
+
+# docker run -v "$SOURCE_DIR:/project" \
+#            -v "$KYLIN_LIB:/cross" \
+#            -v "$BUILD_DIR:/project/arm_build" \
+#            -w "/project/arm_build" \
+#            -it wqhot/gcc9_aarch64:v1.3 \
+#            /bin/bash
 # docker run -v ".:/project" \
 #            -v "${HOME}/libs/cross:/cross" \
 #            -v "$BUILD_DIR:/project/arm_build" \
 #            -w "/project/arm_build" \
 #            -it wqhot/ftbuild:v9.3.0 \
 #            /bin/bash
+
+scp $BUILD_DIR/ffvademo bica@192.9.200.120:/home/bica/fast/

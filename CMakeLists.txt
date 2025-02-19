@@ -6,6 +6,15 @@ else ()
 SET(CMAKE_FIND_ROOT_PATH /usr)
 endif ()
 project(ffvademo)
+
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -O2 -pthread -fopenmp -fPIC -s -Wl,-Bsymbolic")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -pthread -fopenmp -fPIC -s -Wl,-Bsymbolic")
+else(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -O0 -g -Wall -pthread -fopenmp -pg -fPIC -Wl,-Bsymbolic")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -Wall -pthread -fopenmp -pg -fPIC -Wl,-Bsymbolic")
+endif(CMAKE_BUILD_TYPE STREQUAL "Release")
+
 set(CMAKE_CXX_STANDARD 17)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -16,6 +25,13 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 find_package(Threads)
 
+if (PLATFORM STREQUAL "ARM")
+    link_directories("${CMAKE_SOURCE_DIR}/ext/ffmpeg_aarch64/lib")
+    include_directories("${CMAKE_SOURCE_DIR}/ext/ffmpeg_aarch64/include")
+    link_directories("${CMAKE_SOURCE_DIR}/ext/openssl_aarch64/lib")
+    include_directories("${CMAKE_SOURCE_DIR}/ext/openssl_aarch64/include")
+    link_directories("${CMAKE_SOURCE_DIR}/ext/gl_aarch64/lib")
+endif ()
 
 add_definitions(-DUSE_EGL)
 add_definitions(-DUSE_X11)
@@ -89,6 +105,12 @@ target_link_libraries(${target_name}
    ssl
    crypto
 )
+
+if (PLATFORM STREQUAL "ARM")
+target_link_libraries(${target_name}
+${CMAKE_SOURCE_DIR}/ext/ffmpeg_aarch64/lib/libc.so.6
+)
+endif ()
 
 
 target_compile_definitions(

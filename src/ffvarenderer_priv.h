@@ -42,7 +42,7 @@ typedef bool (*FFVARendererSetSizeFunc)(FFVARenderer *rnd, uint32_t width,
 typedef bool (*FFVARendererPutSurfaceFunc)(FFVARenderer *rnd, FFVASurface *s,
     const VARectangle *src_rect, const VARectangle *dst_rect, uint32_t flags);
 typedef bool (*FFVARendererWindowcloseFunc)(FFVARenderer *rnd);
-typedef bool (*FFVARendererLoadImageFunc)(FFVARenderer *rnd, const char *image_path, float x, float y, float w, float h);
+typedef bool (*FFVARendererLoadImageFunc)(FFVARenderer *rnd, const char *image_path, float x, float y, float scale, float rotate);
 
 struct ffva_renderer_s {
     const void *klass;

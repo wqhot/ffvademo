@@ -187,12 +187,11 @@ ffva_render_get_signal_window_close(FFVARenderer *rnd){
      return klass->widow_close(rnd);
 }
 
-
-bool ffva_renderer_load_image(FFVARenderer *rnd, const char *image_path, float x, float y, float w, float h)
+bool ffva_renderer_load_image(FFVARenderer *rnd, const char *image_path, float x, float y, float scale, float rotation)
 {
     FFVARendererClass *klass;
     if (!rnd)
         return 0;
     klass=FFVA_RENDERER_GET_CLASS(rnd);
-    return klass->renderer_load_image(rnd, image_path, x, y, w, h);
+    return klass->renderer_load_image(rnd, image_path, x, y, scale, rotation);
 }

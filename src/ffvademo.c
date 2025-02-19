@@ -62,15 +62,16 @@ pthread_t *output_thread = NULL;
 #define DEFAULT_HEIGHT 480
 
 // Default renderer
-#if USE_DRM
-#define DEFAULT_RENDERER FFVA_RENDERER_TYPE_DRM
-#endif
-#if USE_X11
-#define DEFAULT_RENDERER FFVA_RENDERER_TYPE_X11
-#endif
-#ifndef DEFAULT_RENDERER
+// #if USE_DRM
+// #define DEFAULT_RENDERER FFVA_RENDERER_TYPE_DRM
+// #endif
+// #if USE_X11
+// #define DEFAULT_RENDERER FFVA_RENDERER_TYPE_X11
+// #endif
+// #ifndef DEFAULT_RENDERER
+// #define DEFAULT_RENDERER FFVA_RENDERER_TYPE_EGL
+// #endif
 #define DEFAULT_RENDERER FFVA_RENDERER_TYPE_EGL
-#endif
 
 // Default memory type
 #define DEFAULT_MEM_TYPE MEM_TYPE_DMA_BUF
@@ -457,6 +458,12 @@ app_render_surface(App *app, FFVASurface *s, const VARectangle *rect,
     return ffva_renderer_put_surface(app->renderer, s, rect, NULL, flags);
 }
 
+static bool
+app_renderer_add_image(App *app, const char *image_path, float x, float y, float scale, float rotation)
+{
+    return ffva_renderer_load_image(app->renderer, image_path, x, y, scale, rotation);
+}
+
 static int
 app_render_frame(App *app, FFVADecoderFrame *dec_frame)
 {
@@ -608,6 +615,9 @@ app_run(App *app)
             pthread_create(output_thread, NULL, wrapper_output_thread, app);
           }
 #endif
+
+    app_renderer_add_image(app, "./res/focus.png", 0.5, 0.5, 1.0, 3.14/4);
+
     do {
         ret = app_decode_frame(app);
         ret = 0;
