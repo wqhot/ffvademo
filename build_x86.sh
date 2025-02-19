@@ -13,11 +13,11 @@ mkdir -p "$BUILD_DIR/"
 # Run the docker container and mount the source and build directories
 docker run -v "$SOURCE_DIR:/project" \
            -w "/project/build_gcc11" \
-           -it wqhot/gcc11:v1.0 \
+           -it wqhot/gcc9:v1.0 \
            /bin/bash -c "\
                 git config --global --add safe.directory /project && \
                 cmake /project && \
-                make -j2
+                make -j6
            "
 
-scp ${SOURCE_DIR}/build_gcc11/ffvademo wq@192.168.50.62:/home/wq/player/
+scp ${SOURCE_DIR}/build_gcc11/ffvademo wq@192.168.50.6:/home/wq/player/

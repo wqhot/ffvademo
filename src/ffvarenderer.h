@@ -76,4 +76,6 @@ ffva_render_get_signal_window_close(FFVARenderer *rnd);
 
 bool ffva_renderer_load_image(FFVARenderer *rnd, const char *image_path, float x, float y, float scale, float rotation);
 
+bool ffva_renderer_load_text(FFVARenderer *rnd, const char *font_path, const char *text_context, int font_size, float x, float y);
+
 #endif /* FFVA_RENDERER_H */
