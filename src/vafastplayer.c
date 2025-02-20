@@ -95,6 +95,10 @@ typedef struct {
 } OptionsApp;
 
 typedef struct {
+    float x0, y0, x1, y1;
+} CropRect;
+
+typedef struct {
     const void *klass;
     OptionsApp options;
     FFVADisplay *display;
@@ -108,6 +112,7 @@ typedef struct {
     uint32_t renderer_width;
     uint32_t renderer_height;
     uint32_t quit_flag;
+    CropRect crop_rect;
 } App;
 
 #define OFFSET(x) offsetof(App, options.x)
@@ -204,6 +209,12 @@ app_new(void)
     if (!app)
         return NULL;
 
+    app->crop_rect = (CropRect) {
+        .x0 = 0.0f,
+        .y0 = 0.0f,
+        .x1 = 1.0f,
+        .y1 = 1.0f,
+    };
     app->klass = app_class();
     av_opt_set_defaults(app);
     ffva_surface_init_defaults(&app->filter_surface);
@@ -471,10 +482,10 @@ app_render_frame(App *app, FFVADecoderFrame *dec_frame)
     if (dec_frame->has_crop_rect)
         rect = &dec_frame->crop_rect;
     else {
-        tmp_rect.x = 0;
-        tmp_rect.y = 0;
-        tmp_rect.width = s->width;
-        tmp_rect.height = s->height;
+        tmp_rect.x = app->crop_rect.x0 * s->width;
+        tmp_rect.y = app->crop_rect.y0 * s->height;
+        tmp_rect.width = (app->crop_rect.x1 - app->crop_rect.x0) * s->width;
+        tmp_rect.height = (app->crop_rect.y1 - app->crop_rect.y0) * s->height;
         rect = &tmp_rect;
     }
 
@@ -663,19 +674,35 @@ app_parse_options(App *app, struct Options *options)
 int vafastplayer_add_image(Fastplayer player, char *image_path, float x, float y, float scale, float rotation)
 {
     App *app = (App *)player;
-    app_renderer_add_image(app, image_path, x, y, scale, rotation);
+    return app_renderer_add_image(app, image_path, x, y, scale, rotation);
 }
 
 int vafastplayer_add_text(Fastplayer player, const char* font, const char *text, int font_size, float x, float y)
 {
     App *app = (App *)player;
-    app_renderer_add_text(app, font, text, font_size, x, y);
+    return app_renderer_add_text(app, font, text, font_size, x, y);
 }
 
 bool vafastplayer_adjust_image(Fastplayer player, int image_id, float x, float y, float scale, float rotation)
 {
     App *app = (App *)player;
-    app_renderer_adjust_image(app, image_id, x, y, scale, rotation);
+    return app_renderer_adjust_image(app, image_id, x, y, scale, rotation);
+}
+
+void vafastplayer_crop_video(Fastplayer player, float crop_start_x_u, float crop_start_y_u, float crop_end_x_u, float crop_end_y_u)
+{
+    App *app = (App *)player;
+    float temp_y0 = crop_start_y_u;
+    float temp_y1 = crop_end_y_u;
+    crop_start_y_u = 1.0f - temp_y1;
+    crop_end_y_u = 1.0f - temp_y0;
+    if (crop_start_x_u >= 0 && crop_start_y_u >= 0 && crop_end_x_u > crop_start_x_u && crop_end_y_u > crop_start_y_u && crop_end_x_u <= 1 && crop_end_y_u <= 1)
+    {
+        app->crop_rect.x0 = crop_start_x_u;
+        app->crop_rect.y0 = crop_start_y_u;
+        app->crop_rect.x1 = crop_end_x_u;
+        app->crop_rect.y1 = crop_end_y_u;
+    }
 }
 
 Fastplayer vafastplayer_init(struct Options *opts)
