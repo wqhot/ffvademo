@@ -5,7 +5,7 @@ set(CMAKE_CROSSCOMPILING on)
 else ()
 SET(CMAKE_FIND_ROOT_PATH /usr)
 endif ()
-project(ffvademo)
+project(fastplayer_va)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -O2 -pthread -fopenmp -fPIC -s -Wl,-Bsymbolic")
@@ -61,11 +61,13 @@ include_directories(
     ${live555Includes}
     ${CMAKE_CURRENT_SOURCE_DIR}/ext/stb
     ${CMAKE_FIND_ROOT_PATH}/include/freetype2
+    ${CMAKE_SOURCE_DIR}/inc
+    ${CMAKE_FIND_ROOT_PATH}/include/ffmpeg
 )
 
 
 file(GLOB Souce_files
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvademo.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vafastplayer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ffmpeg_utils.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvadecoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ffvadisplay.c
@@ -82,8 +84,8 @@ file(GLOB Souce_files
 
 message(STATUS "os is ${CMAKE_SYSTEM_NAME}")
 
-set(target_name ffvademo)
-add_executable(${target_name} ${Souce_files})
+set(target_name fastplayer_va)
+add_library(${target_name} SHARED ${Souce_files})
 # add_library(${target_name}  SHARED 
 #          ${Souce_files})
 
@@ -121,3 +123,83 @@ target_compile_definitions(
 	${target_name}
 	PRIVATE
 )
+
+add_subdirectory(example)
+
+SET(MAJOR_VERSION 1)
+SET(MINOR_VERSION 0)
+SET(PATCH_VERSION 0)
+
+#说明要生成的是deb包
+SET(CPACK_GENERATOR "DEB;RPM")
+
+##############设置debian/control文件中的内容###############
+
+#设置版本信息
+SET(CPACK_PACKAGE_VERSION_MAJOR "${MAJOR_VERSION}")
+SET(CPACK_PACKAGE_VERSION_MINOR "${MINOR_VERSION}")
+SET(CPACK_PACKAGE_VERSION_PATCH "${PATCH_VERSION}")
+
+#设置安装包的包名，打好的包将会是packagename-version-linux.deb，如果不设置，默认是工程名
+set(CPACK_PACKAGE_NAME "fastplayer_va")
+
+#设置程序名，就是程序安装后的名字
+set(CPACK_DEBIAN_PACKAGE_NAME "fastplayer_va")
+
+#设置架构
+if (PLATFORM STREQUAL "ARM")
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64")
+    if (CPACK_GENERATOR MATCHES "DEB")
+        set(CMAKE_INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR}/aarch64-linux-gnu)
+    elseif (CPACK_GENERATOR MATCHES "RPM")
+        set(CMAKE_INSTALL_LIBDIR /lib64)
+    endif()
+else ()
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+    if (CPACK_GENERATOR MATCHES "DEB")
+        set(CMAKE_INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR}/x86_64-linux-gnu)
+    elseif (CPACK_GENERATOR MATCHES "RPM")
+        set(CMAKE_INSTALL_LIBDIR /lib64)
+    endif()
+endif ()
+
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}-${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
+
+#设置依赖
+if (PLATFORM STREQUAL "ARM")
+SET(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libx11-6, libavutil56, libavdevice58, libavcodec58, libavformat58, libxdmcp6, libbsd0")
+else ()
+SET(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libx11-6, libavutil56, libavdevice58, libavcodec58, libavformat58, libxdmcp6, libbsd0, libmd0")
+endif ()
+
+
+#设置description
+SET(CPACK_PACKAGE_DESCRIPTION "fastplayer_va")
+
+#设置联系方式
+SET(CPACK_PACKAGE_CONTACT "wqhot@outlook.com")
+
+#设置维护人
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "wq")
+
+include(CPack)
+
+SET(LIBS_DIR ${CMAKE_BINARY_DIR})
+SET(BINARY_DIR ${CMAKE_BINARY_DIR}/example)
+SET(INC_DIR ${CMAKE_SOURCE_DIR}/inc)
+
+# 安装二进制可执行文件
+install(TARGETS zntk_ar
+        RUNTIME DESTINATION bin PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ)
+
+# 安装共享库文件
+install(TARGETS fastplayer_va
+        LIBRARY DESTINATION lib)
+
+# 安装头文件
+install(FILES ${INC_DIR}/vafastplayer.h ${INC_DIR}/vafastplayer.h
+        DESTINATION include)
+
+# 安装资源文件
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/example/res/
+        DESTINATION share/fastplayer)
