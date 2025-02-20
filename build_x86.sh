@@ -17,7 +17,7 @@ docker run -v "$SOURCE_DIR:/project" \
            /bin/bash -c "\
                 git config --global --add safe.directory /project && \
                 cmake /project && \
-                make -j6
+                make package -j6
            "
 
-scp ${SOURCE_DIR}/build_gcc11/ffvademo wq@192.168.50.6:/home/wq/player/
+scp ${SOURCE_DIR}/build_gcc11/fastplayer_va-1.0.0-amd64.deb wq@192.168.50.6:/home/wq/player/

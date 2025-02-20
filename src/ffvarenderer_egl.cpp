@@ -898,10 +898,10 @@ static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_ove
     texcoords[3][0] = x0; texcoords[3][1] = y0;
 
     // Target coords in EGL surface
-    x0 =  2.0f * ((GLfloat)overlay->pos_x) - 1.0f;
-    y0 =  2.0f * ((GLfloat)overlay->pos_y) - 1.0f;
-    x1 =  2.0f * ((GLfloat)overlay->pos_x + (GLfloat)overlay_w / dst_rect->width) - 1.0f;
-    y1 =  2.0f * ((GLfloat)overlay->pos_y + (GLfloat)overlay_h / dst_rect->height) - 1.0f;
+    x0 =  2.0f * ((GLfloat)overlay->pos_x - (GLfloat)overlay_w / dst_rect->width / 2) - 1.0f;
+    y0 =  2.0f * ((GLfloat)overlay->pos_y - (GLfloat)overlay_h / dst_rect->height / 2) - 1.0f;
+    x1 =  2.0f * ((GLfloat)overlay->pos_x + (GLfloat)overlay_w / dst_rect->width / 2) - 1.0f;
+    y1 =  2.0f * ((GLfloat)overlay->pos_y + (GLfloat)overlay_h / dst_rect->height / 2) - 1.0f;
     positions[0][0] = x0; positions[0][1] = y0;
     positions[1][0] = x1; positions[1][1] = y0;
     positions[2][0] = x1; positions[2][1] = y1;

@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
     while (1)
     {
         bool ret = vafastplayer_adjust_image(player, focus, 0.5, 0.5, 1.0, rad);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
         rad = rad + 0.01;
     }
 

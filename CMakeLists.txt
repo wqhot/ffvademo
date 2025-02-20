@@ -131,7 +131,11 @@ SET(MINOR_VERSION 0)
 SET(PATCH_VERSION 0)
 
 #说明要生成的是deb包
+if (PLATFORM STREQUAL "ARM")
 SET(CPACK_GENERATOR "DEB;RPM")
+else()
+SET(CPACK_GENERATOR "DEB")
+endif()
 
 ##############设置debian/control文件中的内容###############
 
@@ -169,7 +173,7 @@ set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION_MAJOR
 if (PLATFORM STREQUAL "ARM")
 SET(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libx11-6, libavutil56, libavdevice58, libavcodec58, libavformat58, libxdmcp6, libbsd0")
 else ()
-SET(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libx11-6, libavutil56, libavdevice58, libavcodec58, libavformat58, libxdmcp6, libbsd0, libmd0")
+SET(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libx11-6, libavutil56, libavdevice58, libavcodec58, libavformat58, libxdmcp6, libbsd0")
 endif ()
 
 
