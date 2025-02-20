@@ -43,7 +43,7 @@ docker run -v "$SOURCE_DIR:/project" \
            /bin/bash -c "\
                 git config --global --add safe.directory /project && \
                 cmake -D CMAKE_BUILD_TYPE=DEBUF -D PLATFORM=ARM .. && \
-                make -j2
+                make package -j2
               "
 
 # docker run -v "$SOURCE_DIR:/project" \
@@ -59,4 +59,5 @@ docker run -v "$SOURCE_DIR:/project" \
 #            -it wqhot/ftbuild:v9.3.0 \
 #            /bin/bash
 
-scp $BUILD_DIR/ffvademo bica@192.9.200.120:/home/bica/fast/
+# scp $BUILD_DIR/libfatplayer.so bica@192.9.200.120:/home/bica/fast/
+scp ${BUILD_DIR}/fastplayer_va-1.0.0-arm64.deb bica@192.9.200.120:/home/bica/fast/
