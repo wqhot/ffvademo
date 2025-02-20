@@ -868,6 +868,10 @@ static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_ove
         const VARectangle *src_rect, const VARectangle *dst_rect) 
 {
     EglContext* const egl = &rnd->egl_context;
+    if (overlay->width == 0 || overlay->height == 0)
+    {
+        return;
+    }
     if (!overlay->program)
     {
         create_image_overlay_context(overlay);

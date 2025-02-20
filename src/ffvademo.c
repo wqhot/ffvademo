@@ -48,6 +48,7 @@
 #include <pthread.h>
 #include <ctype.h>
 #endif
+#include "vafastplayer.h"
 
 #ifdef  OUTTHREAD
 mtx_t                   mutex;
@@ -91,11 +92,11 @@ typedef struct {
     int list_pix_fmts;
     uint32_t window_width;
     uint32_t window_height;
-} Options;
+} OptionsApp;
 
 typedef struct {
     const void *klass;
-    Options options;
+    OptionsApp options;
     FFVADisplay *display;
     VADisplay va_display;
     FFVADecoder *decoder;
@@ -279,7 +280,7 @@ error_create_decoder:
 static bool
 app_ensure_filter(App *app)
 {
-    const Options * const options = &app->options;
+    const OptionsApp * const options = &app->options;
     const int *formats, *format = NULL;
 
     if (!app->filter) {
@@ -351,7 +352,7 @@ app_ensure_filter_surface(App *app, uint32_t width, uint32_t height)
 static bool
 app_ensure_renderer(App *app)
 {
-    const Options * const options = &app->options;
+    const OptionsApp * const options = &app->options;
     uint32_t flags = 0;
 
     if (!app->renderer) {
@@ -435,7 +436,7 @@ static bool
 app_render_surface(App *app, FFVASurface *s, const VARectangle *rect,
     uint32_t flags)
 {
-    const Options * const options = &app->options;
+    const OptionsApp * const options = &app->options;
     uint32_t renderer_width, renderer_height;
 
     renderer_width = options->window_width ? options->window_width :
@@ -552,7 +553,7 @@ app_list_formats(App *app)
 static bool
 app_list_info(App *app)
 {
-    const Options * const options = &app->options;
+    const OptionsApp * const options = &app->options;
     bool list_info = false;
 
     if (options->list_pix_fmts) {
@@ -578,7 +579,7 @@ static void* wrapper_output_thread(void*arg)
 static bool
 app_run(App *app)
 {
-    const Options * const options = &app->options;
+    const OptionsApp * const options = &app->options;
     FFVADecoderInfo info;
     bool need_filter;
     char errbuf[BUFSIZ];
@@ -623,8 +624,8 @@ app_run(App *app)
 #endif
 
     app_renderer_add_image(app, "./res/focus.png", 0.5, 0.5, 1.0, 3.14/4);
-    app_renderer_add_text(app, "source.otf", "IHello World!\n中", 48, 0.2, 0.2);
-    app_renderer_add_image(app, "./res/focus_old.png", 0.8, 0.8, 0.8, 3.14/7);
+    app_renderer_add_text(app, "source.otf", "IHello World!\n计算所", 48, 0.2, 0.2);
+    app_renderer_add_image(app, "./res/tank_turret.png", 0.8, 0.8, 0.8, 3.14/7);
 
     do {
         ret = app_decode_frame(app);
@@ -651,106 +652,68 @@ error_decode_frame:
 }
 
 static bool
-app_parse_options(App *app, int argc, char *argv[])
+app_parse_options(App *app, struct Options *options)
 {
-    char errbuf[BUFSIZ];
-    int ret, v, o = -1;
-
-    enum {
-        OPT_LIST_FORMATS = 1000,
-    };
-
-    static const struct option long_options[] = {
-        { "help",           no_argument,        NULL, 'h'                   },
-        { "window-width",   required_argument,  NULL, 'x'                   },
-        { "window-height",  required_argument,  NULL, 'y'                   },
-        { "renderer",       required_argument,  NULL, 'r'                   },
-        { "mem-type",       required_argument,  NULL, 'm'                   },
-        { "format",         required_argument,  NULL, 'f'                   },
-        { "list-formats",   no_argument,        NULL, OPT_LIST_FORMATS      },
-        { NULL, }
-    };
-
-    for (;;) {
-        v = getopt_long(argc, argv, "-hx:y:r:m:f:", long_options, &o);
-        if (v < 0)
-            break;
-
-        switch (v) {
-        case '?':
-            return false;
-        case 'h':
-            print_help(argv[0]);
-            return false;
-        case 'x':
-            ret = av_opt_set(app, "window_width", optarg, 0);
-            break;
-        case 'y':
-            ret = av_opt_set(app, "window_height", optarg, 0);
-            break;
-        case 'r':
-            ret = av_opt_set(app, "renderer", optarg, 0);
-            break;
-        case 'm':
-            ret = av_opt_set(app, "mem_type", optarg, 0);
-            break;
-        case 'f':
-            ret = av_opt_set(app, "pix_fmt", optarg, 0);
-            break;
-        case OPT_LIST_FORMATS:
-            ret = av_opt_set_int(app, "list_pix_fmts", 1, 0);
-            break;
-        case '\1':
-            ret = av_opt_set(app, "filename", optarg, 0);
-            break;
-        default:
-            ret = 0;
-            break;
-        }
-        if (ret != 0)
-            goto error_set_option;
-    }
+    OptionsApp *opt = &(app->options);
+    opt->filename = options->filename;
+    opt->window_width = options->window_width;
+    opt->window_height = options->window_height;
+    opt->mem_type = MEM_TYPE_DMA_BUF;
+    opt->pix_fmt = AV_PIX_FMT_NONE;
+    opt->list_pix_fmts = 0;
     return true;
-
-    /* ERRORS */
-error_set_option:
-    if (o < 0) {
-        av_log(app, AV_LOG_ERROR, "failed to set short option -%c: %s\n",
-            v, ffmpeg_strerror(ret, errbuf));
-    }
-    else {
-        av_log(app, AV_LOG_ERROR, "failed to set long option --%s: %s\n",
-            long_options[o].name, ffmpeg_strerror(ret, errbuf));
-    }
-    return false;
 }
 
-int
-main(int argc, char *argv[])
+Fastplayer vafastplayer_init(struct Options *opts)
 {
     App *app;
     int ret = EXIT_FAILURE;
 
-    if (argc == 1) {
-        print_help(argv[0]);
-        return EXIT_SUCCESS;
-    }
-
     app = app_new();
 
 
-    if (!app || !app_parse_options(app, argc, argv) || !app_run(app))
-        goto cleanup;
-    ret = EXIT_SUCCESS;
+    if (!app || !app_parse_options(app, opts))
+    {
+        app_free(app);
+        return NULL;
+    }
+    return (void *)app;
+}
 
+int vafastplayer_start(Fastplayer player)
+{
+    App *app = (App *)player;
+    int ret = -1;
+    if (!app || !app_run(app))
+        goto cleanup;
+    ret = 0;
 cleanup:
     app_free(app);
 #ifdef OUTTHREAD
     if(output_thread) {
         pthread_join(*output_thread, NULL);
-	    free(output_thread);
+        free(output_thread);
         output_thread = NULL;
     }
 #endif
     return ret;
+}
+
+int
+main(int argc, char *argv[])
+{
+    Options opt;
+    opt.filename = argv[1];
+    opt.window_width = 1280;
+    opt.window_height = 720;
+    Fastplayer player = vafastplayer_init(&opt);
+    if (!player) {
+        fprintf(stderr, "Failed to initialize application\n");
+    }
+    if (vafastplayer_start(player) != 0)
+    {
+        fprintf(stderr, "Failed to run application\n");
+    }
+    printf("start__\n");
+    return 0;
 }
