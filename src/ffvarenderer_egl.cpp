@@ -1855,27 +1855,39 @@ set_text_overlay(FFVARendererEGL *rnd, text_overlay *text, const char *text_str,
     }
 }
 
-static bool renderer_load_image(FFVARendererEGL *rnd, const char *image_path, float x, float y, float scale, float rotation)
+static bool renderer_adjust_image(FFVARendererEGL *rnd, int image_id, float x, float y, float scale, float rotation)
 {
     if (!rnd) 
         return false;
+    if (image_id >= rnd->num_overlays)
+    {
+        return false;
+    }
+    image_overlay_set_transform(rnd->overlays[image_id], x, y, scale, rotation);
+    return true;
+}
+
+static int renderer_load_image(FFVARendererEGL *rnd, const char *image_path, float x, float y, float scale, float rotation)
+{
+    if (!rnd) 
+        return -1;
     rnd->overlays = (image_overlay **)realloc(rnd->overlays, (rnd->num_overlays + 1) * sizeof(image_overlay*));
     image_overlay* overlay = image_overlay_create(image_path);
     if (!overlay)
     {
         av_log(rnd, AV_LOG_ERROR, "failed to create image overlay\n");
-        return false;
+        return -1;
     }
     rnd->overlays[rnd->num_overlays] = overlay;
     image_overlay_set_transform(rnd->overlays[rnd->num_overlays], x, y, scale, rotation);
     rnd->num_overlays = rnd->num_overlays + 1;
-    return true;
+    return rnd->num_overlays - 1;
 }
 
-static bool renderer_load_text(FFVARendererEGL *rnd, const char *font_path, const char *text_context, int font_size, float x, float y)
+static int renderer_load_text(FFVARendererEGL *rnd, const char *font_path, const char *text_context, int font_size, float x, float y)
 {
     if (!rnd) 
-        return false;
+        return -1;
     rnd->text_overlays = (text_overlay **)realloc(rnd->text_overlays, (rnd->num_text_overlays + 1) * sizeof(text_overlay*));
     text_overlay *text = (text_overlay*)calloc(1, sizeof(text_overlay));
     init_text_overlay(text, font_path, font_size);
@@ -1883,11 +1895,11 @@ static bool renderer_load_text(FFVARendererEGL *rnd, const char *font_path, cons
     if (!text)
     {
         av_log(rnd, AV_LOG_ERROR, "failed to create image overlay\n");
-        return false;
+        return -1;
     }
     rnd->text_overlays[rnd->num_text_overlays] = text;
     rnd->num_text_overlays = rnd->num_text_overlays + 1;
-    return true;
+    return rnd->num_text_overlays - 1;
 }
 
 static const FFVARendererClass *
@@ -1910,6 +1922,7 @@ ffva_renderer_egl_class(void)
         .put_surface    = (FFVARendererPutSurfaceFunc)renderer_put_surface,
         .renderer_load_image = (FFVARendererLoadImageFunc)renderer_load_image,
         .renderer_load_text = (FFVARendererLoadTextFunc)renderer_load_text,
+        .renderer_adjust_image = (FFVARendererAdjustImageFunc)renderer_adjust_image,
     };
     return &g_class;
 }

@@ -42,7 +42,7 @@
 #if USE_EGL
 # include "ffvarenderer_egl.h"
 #endif
-// #define OUTTHREAD
+#define OUTTHREAD
 // #ifdef OUTTHREAD
 #include <threads.h>
 #include <pthread.h>
@@ -153,24 +153,6 @@ char* getInput(char line[], size_t len)
    return fgets(line, len, stdin);
 }
 
-#if 1
-static void* wrapper_output_thread(void*arg)
-{
-       char line[MAX_LINE_LENGTH];
-       App *app=(App *)arg;
-    while(getInput(line, sizeof(line))){
-
-         if ( toupper(line[0]) == 'Q' ){
-            mtx_lock(&mutex);
-            app->quit_flag=1;
-            mtx_unlock(&mutex);
-            break;
-         }
-
-    }
-}
-
-#endif
 static const char *
 get_basename(const char *filename)
 {
@@ -459,16 +441,22 @@ app_render_surface(App *app, FFVASurface *s, const VARectangle *rect,
     return ffva_renderer_put_surface(app->renderer, s, rect, NULL, flags);
 }
 
-static bool
+static int
 app_renderer_add_image(App *app, const char *image_path, float x, float y, float scale, float rotation)
 {
     return ffva_renderer_load_image(app->renderer, image_path, x, y, scale, rotation);
 }
 
-static bool
+static int
 app_renderer_add_text(App *app, const char *font_path, const char *text_context, int font_size, float x, float y)
 {
     return ffva_renderer_load_text(app->renderer, font_path, text_context, font_size, x, y);
+}
+
+static bool
+app_renderer_adjust_image(App *app, int image_id, float x, float y, float scale, float rotation)
+{
+    return ffva_renderer_adjust_image(app->renderer, image_id, x, y, scale, rotation);
 }
 
 static int
@@ -576,6 +564,34 @@ static void* wrapper_output_thread(void*arg)
     }
 }
 #endif
+
+#if 1
+static void* wrapper_output_thread(void*arg)
+{
+    App *app = (App*)arg;
+    char errbuf[BUFSIZ];
+    int ret;
+    do {
+        ret = app_decode_frame(app);
+        ret = 0;
+        if(app->quit_flag==1){
+            printf("receive quit signal \n");
+            break;
+        }
+    } while (ret == 0 || ret == AVERROR(EAGAIN));
+    if (ret != AVERROR_EOF)
+        goto error_decode_frame;
+    ffva_decoder_stop(app->decoder);
+    ffva_decoder_close(app->decoder);
+    return true;
+
+    /* ERRORS */
+error_decode_frame:
+    av_log(app, AV_LOG_ERROR, "failed to decode frame: %s\n",
+        ffmpeg_strerror(ret, errbuf));
+}
+
+#endif
 static bool
 app_run(App *app)
 {
@@ -623,31 +639,11 @@ app_run(App *app)
           }
 #endif
 
-    app_renderer_add_image(app, "./res/focus.png", 0.5, 0.5, 1.0, 3.14/4);
-    app_renderer_add_text(app, "source.otf", "IHello World!\n计算所", 48, 0.2, 0.2);
-    app_renderer_add_image(app, "./res/tank_turret.png", 0.8, 0.8, 0.8, 3.14/7);
-
-    do {
-        ret = app_decode_frame(app);
-        ret = 0;
-        if(app->quit_flag==1){
-            printf("receive quit signal \n");
-            break;
-        }
-    } while (ret == 0 || ret == AVERROR(EAGAIN));
-    if (ret != AVERROR_EOF)
-        goto error_decode_frame;
-    ffva_decoder_stop(app->decoder);
-    ffva_decoder_close(app->decoder);
     return true;
 
     /* ERRORS */
 error_no_filename:
     av_log(app, AV_LOG_ERROR, "no video file specified on command line\n");
-    return false;
-error_decode_frame:
-    av_log(app, AV_LOG_ERROR, "failed to decode frame: %s\n",
-        ffmpeg_strerror(ret, errbuf));
     return false;
 }
 
@@ -662,6 +658,24 @@ app_parse_options(App *app, struct Options *options)
     opt->pix_fmt = AV_PIX_FMT_NONE;
     opt->list_pix_fmts = 0;
     return true;
+}
+
+int vafastplayer_add_image(Fastplayer player, char *image_path, float x, float y, float scale, float rotation)
+{
+    App *app = (App *)player;
+    app_renderer_add_image(app, image_path, x, y, scale, rotation);
+}
+
+int vafastplayer_add_text(Fastplayer player, const char* font, const char *text, int font_size, float x, float y)
+{
+    App *app = (App *)player;
+    app_renderer_add_text(app, font, text, font_size, x, y);
+}
+
+bool vafastplayer_adjust_image(Fastplayer player, int image_id, float x, float y, float scale, float rotation)
+{
+    App *app = (App *)player;
+    app_renderer_adjust_image(app, image_id, x, y, scale, rotation);
 }
 
 Fastplayer vafastplayer_init(struct Options *opts)
@@ -687,8 +701,16 @@ int vafastplayer_start(Fastplayer player)
     if (!app || !app_run(app))
         goto cleanup;
     ret = 0;
+    return ret;
 cleanup:
     app_free(app);
+    ret = -1;
+    return ret;
+}
+
+int vafastplayer_stop(Fastplayer player)
+{
+    App *app = (App *)player;
 #ifdef OUTTHREAD
     if(output_thread) {
         pthread_join(*output_thread, NULL);
@@ -696,7 +718,7 @@ cleanup:
         output_thread = NULL;
     }
 #endif
-    return ret;
+    return 0;
 }
 
 // int
