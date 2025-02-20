@@ -28,13 +28,16 @@ FASTPLAYERAPI
 Fastplayer vafastplayer_init(struct Options *opts);
 
 FASTPLAYERAPI
-int vafastplayer_add_image(Fastplayer player, char *image_path, float x, float y, float scale, float rotation);
+int vafastplayer_add_image(Fastplayer player, char *image_path, float x_u, float y_u, float scale_u, float rotation);
 
 FASTPLAYERAPI
-int vafastplayer_add_text(Fastplayer player, const char* font, const char *text, int font_size, float x, float y);
+int vafastplayer_add_text(Fastplayer player, const char* font, const char *text, int font_size_p, float x_u, float y_u);
 
 FASTPLAYERAPI
-bool vafastplayer_adjust_image(Fastplayer player, int image_id, float x, float y, float scale, float rotation);
+bool vafastplayer_adjust_image(Fastplayer player, int image_id, float x_u, float y_u, float scale, float rotation);
+
+FASTPLAYERAPI
+void vafastplayer_crop_video(Fastplayer player, float crop_lb_x_u, float crop_lb_y_u, float crop_rt_x_u, float crop_rt_y_u);
 
 // FASTPLAYERAPI
 // bool vafastplayer_adjust_text(Fastplayer player, int text_id, const char *text, float x, float y);
