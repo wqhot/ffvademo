@@ -797,7 +797,7 @@ decoder_run(FFVADecoder *dec)
     packet.size = 0;
 
     AVStream *av_stream = dec->stream;
-    static auto start_ = std::chrono::steady_clock::now();
+    // static auto start_ = std::chrono::steady_clock::now();
 
     do {
         if (!dec->isrtsp)
@@ -809,21 +809,21 @@ decoder_run(FFVADecoder *dec)
             presentationTime.tv_sec = packet.pts / 1000000;
             presentationTime.tv_usec = packet.pts % 1000000;
             double timestamp = (double)packet.pts * time_base;
-            if (timestamp <= 0)
-            {
-                usleep(30 * 1000);
-            }
-            else
-            {
-                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_);
-                double play_dur = (double)duration.count() / 1000.0;
-                while (timestamp > play_dur)
-                {
-                    usleep(1000);
-                    duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_);
-                    play_dur = (double)duration.count() / 1000.0;
-                }
-            }
+            // if (timestamp <= 0)
+            // {
+            //     usleep(30 * 1000);
+            // }
+            // else
+            // {
+            //     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_);
+            //     double play_dur = (double)duration.count() / 1000.0;
+            //     while (timestamp > play_dur)
+            //     {
+            //         usleep(1000);
+            //         duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_);
+            //         play_dur = (double)duration.count() / 1000.0;
+            //     }
+            // }
 
         }
         else
