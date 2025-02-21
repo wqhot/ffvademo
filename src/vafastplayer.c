@@ -470,6 +470,12 @@ app_renderer_adjust_image(App *app, int image_id, float x, float y, float scale,
     return ffva_renderer_adjust_image(app->renderer, image_id, x, y, scale, rotation);
 }
 
+static void
+app_renderer_set_center(App *app, float x, float y)
+{
+    return ffva_renderer_set_center(app->renderer, x, y);
+}
+
 static int
 app_render_frame(App *app, FFVADecoderFrame *dec_frame)
 {
@@ -703,6 +709,12 @@ void vafastplayer_crop_video(Fastplayer player, float crop_start_x_u, float crop
         app->crop_rect.x1 = crop_end_x_u;
         app->crop_rect.y1 = crop_end_y_u;
     }
+}
+
+void vafastplayer_set_center(Fastplayer player, float x_u, float y_u)
+{
+    App *app = (App *)player;
+    app_renderer_set_center(app, x_u, y_u);
 }
 
 Fastplayer vafastplayer_init(struct Options *opts)

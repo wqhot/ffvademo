@@ -80,4 +80,6 @@ int ffva_renderer_load_text(FFVARenderer *rnd, const char *font_path, const char
 
 bool ffva_renderer_adjust_image(FFVARenderer *rnd, int image_id, float x, float y, float scale, float rotation);
 
+void ffva_renderer_set_center(FFVARenderer *rnd, float x, float y);
+
 #endif /* FFVA_RENDERER_H */
