@@ -645,7 +645,7 @@ ensure_vtable(FFVARendererEGL *rnd)
     const char *extensions;
     int i;
 
-    static const char *egl_extensions_required[] = {
+    const char *egl_extensions_required[] = {
         "EGL_KHR_image_pixmap",
         "EGL_KHR_image_base",
         "EGL_EXT_image_dma_buf_import",
@@ -654,7 +654,7 @@ ensure_vtable(FFVARendererEGL *rnd)
         NULL
     };
 
-    static const char *gl_extensions_required[] = {
+    const char *gl_extensions_required[] = {
         "GL_OES_EGL_image",
 #if USE_GLES_VERSION != 0
         "GL_OES_EGL_image_external",
@@ -722,7 +722,7 @@ ensure_config(FFVARendererEGL *rnd)
     EGLConfig config;
     EGLint num_configs, vid;
 
-    static const EGLint attribs[] = {
+    const EGLint attribs[] = {
         EGL_RED_SIZE,           8,
         EGL_GREEN_SIZE,         8,
         EGL_BLUE_SIZE,          8,
@@ -773,7 +773,7 @@ ensure_context(FFVARendererEGL *rnd)
 
     switch (OPENGL_BIT) {
     case EGL_OPENGL_ES2_BIT: {
-        static const EGLint gles2_attribs[] = {
+        const EGLint gles2_attribs[] = {
             EGL_CONTEXT_CLIENT_VERSION, 2,
             EGL_NONE
         };
@@ -781,7 +781,7 @@ ensure_context(FFVARendererEGL *rnd)
         break;
     }
     case EGL_OPENGL_ES3_BIT_KHR: {
-        static const EGLint gles3_attribs[] = {
+        const EGLint gles3_attribs[] = {
             EGL_CONTEXT_CLIENT_VERSION, 3,
             EGL_NONE
         };

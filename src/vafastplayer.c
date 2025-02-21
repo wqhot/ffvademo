@@ -51,10 +51,10 @@
 #include "vafastplayer.h"
 
 // #ifdef  OUTTHREAD
-mtx_t                   mutex;
-static int quit_flag=0;
-static int output_thread_run=1;
-pthread_t *output_thread = NULL;
+// mtx_t                   mutex;
+// static int quit_flag=0;
+// static int output_thread_run=1;
+// pthread_t *output_thread = NULL;
 // #endif
 #define MAX_LINE_LENGTH 200
 
@@ -113,6 +113,8 @@ typedef struct {
     uint32_t renderer_height;
     uint32_t quit_flag;
     CropRect crop_rect;
+    int output_thread_run;
+    pthread_t *output_thread;
 } App;
 
 #define OFFSET(x) offsetof(App, options.x)
@@ -645,14 +647,14 @@ app_run(App *app)
     if (!ffva_decoder_get_info(app->decoder, &info))
         return false;
 #ifdef OUTTHREAD
-       if (!output_thread) {
-            output_thread_run = 1;
-            output_thread = (pthread_t *)calloc(1, sizeof(pthread_t));
-            if(output_thread==NULL){
+       if (!app->output_thread) {
+            app->output_thread_run = 1;
+            app->output_thread = (pthread_t *)calloc(1, sizeof(pthread_t));
+            if(app->output_thread==NULL){
                 printf("out_thread is null !----\n");
                 return false;
             }
-            pthread_create(output_thread, NULL, wrapper_output_thread, app);
+            pthread_create(app->output_thread, NULL, wrapper_output_thread, app);
           }
 #endif
 
@@ -751,10 +753,10 @@ int vafastplayer_stop(Fastplayer player)
 {
     App *app = (App *)player;
 #ifdef OUTTHREAD
-    if(output_thread) {
-        pthread_join(*output_thread, NULL);
-        free(output_thread);
-        output_thread = NULL;
+    if(app->output_thread) {
+        pthread_join(*(app->output_thread), NULL);
+        free(app->output_thread);
+        app->output_thread = NULL;
     }
 #endif
     return 0;
