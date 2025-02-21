@@ -24,6 +24,7 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xatom.h> 
 #include <va/va_x11.h>
 #include "ffvarenderer_x11.h"
 #include "ffvarenderer_priv.h"
@@ -165,7 +166,28 @@ window_create(FFVARendererX11 *rnd, uint32_t width, uint32_t height)
         XFree(vi);
     if (!rnd->window)
         goto error_create_window;
- //   wmDeleteWindow = XInternAtom(rnd->display, "WM_DELETE_WINDOW", True);
+    // 设置无边框属性
+    Atom motif_hints = XInternAtom(rnd->display, "_MOTIF_WM_HINTS", False);
+    if (motif_hints != None) {
+        typedef struct {
+            unsigned long flags;
+            unsigned long functions;
+            unsigned long decorations;
+            long input_mode;
+            unsigned long status;
+        } MotifWmHints;
+        
+        MotifWmHints hints = {0};
+        hints.flags = 2;       // 表示要设置decorations属性
+        hints.decorations = 0; // 0表示无边框
+        
+        XChangeProperty(rnd->display, rnd->window,
+                       motif_hints, motif_hints,
+                       32, PropModeReplace,
+                       (unsigned char *)&hints,
+                       sizeof(hints)/sizeof(long));
+    }
+        //   wmDeleteWindow = XInternAtom(rnd->display, "WM_DELETE_WINDOW", True);
   //  XSetWMProtocols(rnd->display, rnd->window, &wmDeleteWindow, 1);
     XSelectInput(rnd->display, rnd->window, x11_event_mask);
     XMapWindow(rnd->display, rnd->window);
