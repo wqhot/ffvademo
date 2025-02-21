@@ -217,6 +217,7 @@ struct egl_program_s {
     GLuint vert_shader;
     int proj_uniform;
     int tex_uniforms[3];
+    int center_uniform;
 };
 
 static void
@@ -324,14 +325,26 @@ static const char *frag_shader_text_nv12 =
     // "#else\n"
     "uniform sampler2D tex0;\n"
     "uniform sampler2D tex1;\n"
+    "uniform vec2 center;                          \n"
+    "const float magnification = 2.0;                          \n"
+    "const float lens_magn_r = 0.125;                          \n"
     // "#endif\n"
     "\n"
     "varying vec2 v_texcoord;\n"
     "\n"
     "void main() {\n"
-    "    vec4 p_y  = texture2D(tex0, v_texcoord);\n"
-    "    vec4 p_uv = texture2D(tex1, v_texcoord);\n"
-    "    vec3 yuv  = vec3(p_y.r, p_uv.r, p_uv.g);\n"
+    "    vec2 coord_uv = vec2(v_texcoord.x, v_texcoord.y);         \n"
+    "    float mouse_dist = distance(coord_uv, center);   \n"
+    "    vec4 p_y; vec4 p_uv; vec4 p_yuv; vec3 yuv;\n"
+    "    if (mouse_dist < lens_magn_r) { \n"
+    "    p_y  = texture2D(tex0, center + (v_texcoord - center) / magnification);\n"
+    "    p_uv = texture2D(tex1, center + (v_texcoord - center) / magnification);\n"
+    "    yuv  = vec3(p_y.r, p_uv.r, p_uv.g);\n"
+    "    }else { \n"
+    "    p_y  = texture2D(tex0, v_texcoord);\n"
+    "    p_uv = texture2D(tex1, v_texcoord);\n"
+    "    yuv  = vec3(p_y.r, p_uv.r, p_uv.g);\n"
+    "    }\n"
     YUV2RGB_COLOR(BT601_LIMITED)
     "}\n";
 #else
@@ -476,6 +489,7 @@ egl_program_new(const char *frag_shader_text, const char *vert_shader_text)
     program->tex_uniforms[0] = glGetUniformLocation(program->program, "tex0");
     program->tex_uniforms[1] = glGetUniformLocation(program->program, "tex1");
     program->tex_uniforms[2] = glGetUniformLocation(program->program, "tex2");
+    program->center_uniform  = glGetUniformLocation(program->program, "center");
     glUseProgram(0);
     return program;
 
@@ -557,6 +571,8 @@ struct ffva_renderer_egl_s {
     int num_overlays;
     text_overlay** text_overlays;
     int num_text_overlays;
+    float center_x;
+    float center_y;
 };
 
 static bool
@@ -1681,6 +1697,10 @@ renderer_redraw(FFVARendererEGL *rnd, FFVASurface *s,
         if (program)
             glUniform1i(program->tex_uniforms[i], i);
     }
+    if (program)
+    {
+        glUniform2f(program->center_uniform, rnd->center_x, rnd->center_y);
+    }
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
     glDisableVertexAttribArray(1);
@@ -1867,6 +1887,15 @@ static bool renderer_adjust_image(FFVARendererEGL *rnd, int image_id, float x, f
     return true;
 }
 
+static void renderer_set_center(FFVARendererEGL *rnd, float x, float y)
+{
+    if (!rnd) 
+        return;
+    rnd->center_x = x;
+    rnd->center_y = y;
+    return;
+}
+
 static int renderer_load_image(FFVARendererEGL *rnd, const char *image_path, float x, float y, float scale, float rotation)
 {
     if (!rnd) 
@@ -1923,6 +1952,7 @@ ffva_renderer_egl_class(void)
         .renderer_load_image = (FFVARendererLoadImageFunc)renderer_load_image,
         .renderer_load_text = (FFVARendererLoadTextFunc)renderer_load_text,
         .renderer_adjust_image = (FFVARendererAdjustImageFunc)renderer_adjust_image,
+        .renderer_set_center = (FFVARendererSetCenterFunc)renderer_set_center,
     };
     return &g_class;
 }

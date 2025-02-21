@@ -214,3 +214,12 @@ bool ffva_renderer_adjust_image(FFVARenderer *rnd, int image_id, float x, float 
     return klass->renderer_adjust_image(rnd, image_id, x, y, scale, rotation);
 }
 
+void ffva_renderer_set_center(FFVARenderer *rnd, float x, float y)
+{
+    FFVARendererClass *klass;
+    if (!rnd)
+        return -1;
+    klass=FFVA_RENDERER_GET_CLASS(rnd);
+    klass->renderer_set_center(rnd, x, y);
+    return;
+}

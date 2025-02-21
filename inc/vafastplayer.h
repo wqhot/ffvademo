@@ -39,6 +39,9 @@ bool vafastplayer_adjust_image(Fastplayer player, int image_id, float x_u, float
 FASTPLAYERAPI
 void vafastplayer_crop_video(Fastplayer player, float crop_lb_x_u, float crop_lb_y_u, float crop_rt_x_u, float crop_rt_y_u);
 
+FASTPLAYERAPI
+void vafastplayer_set_center(Fastplayer player, float x_u, float y_u);
+
 // FASTPLAYERAPI
 // bool vafastplayer_adjust_text(Fastplayer player, int text_id, const char *text, float x, float y);
 

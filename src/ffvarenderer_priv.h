@@ -45,6 +45,7 @@ typedef bool (*FFVARendererWindowcloseFunc)(FFVARenderer *rnd);
 typedef int (*FFVARendererLoadImageFunc)(FFVARenderer *rnd, const char *image_path, float x, float y, float scale, float rotate);
 typedef int (*FFVARendererLoadTextFunc)(FFVARenderer *rnd, const char *font_path, const char *text, int font_size, float x, float y);
 typedef bool (*FFVARendererAdjustImageFunc)(FFVARenderer *rnd, int image_id, float x, float y, float scale, float rotate);
+typedef void (*FFVARendererSetCenterFunc)(FFVARenderer *rnd, float x, float y);
 
 struct ffva_renderer_s {
     const void *klass;
@@ -69,6 +70,7 @@ struct ffva_renderer_class_s {
     FFVARendererLoadImageFunc renderer_load_image;
     FFVARendererLoadTextFunc renderer_load_text;
     FFVARendererAdjustImageFunc renderer_adjust_image;
+    FFVARendererSetCenterFunc renderer_set_center;
 };
 
 DLL_HIDDEN
