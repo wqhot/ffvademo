@@ -21,6 +21,8 @@ typedef struct Options{
     char *filename;
     uint32_t window_width;
     uint32_t window_height;
+    int window_x;
+    int window_y;
 } Options;
 
 
@@ -41,6 +43,9 @@ void vafastplayer_crop_video(Fastplayer player, float crop_lb_x_u, float crop_lb
 
 FASTPLAYERAPI
 void vafastplayer_set_center(Fastplayer player, float x_u, float y_u);
+
+FASTPLAYERAPI
+void vafastplayer_set_size(Fastplayer player, int x_p, int y_p, uint32_t width_p, uint32_t height_p);
 
 // FASTPLAYERAPI
 // bool vafastplayer_adjust_text(Fastplayer player, int text_id, const char *text, float x, float y);

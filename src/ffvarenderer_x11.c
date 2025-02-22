@@ -59,6 +59,12 @@ struct ffva_renderer_x11_s {
     Window window;
     uint32_t window_width;
     uint32_t window_height;
+    int window_x;
+    int window_y;
+    uint32_t wanted_window_width;
+    uint32_t wanted_window_height;
+    int wanted_window_x;
+    int wanted_window_y;
     uint32_t window_width_orig;
     uint32_t window_height_orig;
     bool is_fullscreen;
@@ -160,7 +166,7 @@ window_create(FFVARendererX11 *rnd, uint32_t width, uint32_t height)
     xswa.background_pixel = rnd->white_pixel;
 
     rnd->window = XCreateWindow(rnd->display, rnd->root_window,
-        0, 0, width, height, 0, depth, InputOutput, vi->visual,
+        1, 1, width, height, 0, depth, InputOutput, vi->visual,
         xswa_mask, &xswa);
     if (vi != &visualInfo)
         XFree(vi);
@@ -187,10 +193,40 @@ window_create(FFVARendererX11 *rnd, uint32_t width, uint32_t height)
                        (unsigned char *)&hints,
                        sizeof(hints)/sizeof(long));
     }
-        //   wmDeleteWindow = XInternAtom(rnd->display, "WM_DELETE_WINDOW", True);
+    Atom window_type = XInternAtom(rnd->display, "_NET_WM_WINDOW_TYPE", False);
+    Atom normal_type = XInternAtom(rnd->display, "_NET_WM_WINDOW_TYPE_NORMAL", False);
+    XChangeProperty(rnd->display, rnd->window, window_type, 
+                XA_ATOM, 32, PropModeReplace,
+                (unsigned char *)&normal_type, 1);
+
+    XSizeHints *size_hints = XAllocSizeHints();
+    size_hints->flags = PPosition | PSize | USPosition | USSize;
+    size_hints->x = 0;
+    size_hints->y = 0;
+    size_hints->width = width;
+    size_hints->height = height;
+    XSetWMNormalHints(rnd->display, rnd->window, size_hints);
+    XFree(size_hints);
+    XResizeWindow(rnd->display, rnd->window, width, height);
+    XMoveWindow(rnd->display, rnd->window, 0, 0);
+
+//   wmDeleteWindow = XInternAtom(rnd->display, "WM_DELETE_WINDOW", True);
   //  XSetWMProtocols(rnd->display, rnd->window, &wmDeleteWindow, 1);
     XSelectInput(rnd->display, rnd->window, x11_event_mask);
     XMapWindow(rnd->display, rnd->window);
+
+    XEvent ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.xclient.type = ClientMessage;
+    ev.xclient.window = rnd->window;
+    ev.xclient.message_type = XInternAtom(rnd->display, "_NET_WM_STATE", False);
+    ev.xclient.format = 32;
+    ev.xclient.data.l[0] = 0; // _NET_WM_STATE_REMOVE
+    ev.xclient.data.l[1] = XInternAtom(rnd->display, "_NET_WM_STATE_FULLSCREEN", False);
+    ev.xclient.data.l[2] = 0;
+
+    XSendEvent(rnd->display, DefaultRootWindow(rnd->display), False,
+            SubstructureRedirectMask | SubstructureNotifyMask, &ev);
 
     rnd->window_width = width;
     rnd->window_height = height;
@@ -258,7 +294,7 @@ renderer_get_size(FFVARendererX11 *rnd, uint32_t *width_ptr,
     if (rnd->is_fullscreen_changed) {
         XFlush(rnd->display);
         XSync(rnd->display, False);
-        success = x11_get_geometry(rnd->display, rnd->window, NULL, NULL,
+        success = x11_get_geometry(rnd->display, rnd->window, &rnd->window_x, &rnd->window_y,
             &rnd->window_width, &rnd->window_height);
         rnd->is_fullscreen_changed = false;
         if (!success)
@@ -296,7 +332,7 @@ renderer_get_size(FFVARendererX11 *rnd, uint32_t *width_ptr,
     if(rnd->display){
         XFlush(rnd->display);
         XSync(rnd->display, False);
-        success = x11_get_geometry(rnd->display, rnd->window, NULL, NULL,
+        success = x11_get_geometry(rnd->display, rnd->window, &rnd->window_x, &rnd->window_y,
             &rnd->window_width, &rnd->window_height);
         if (!success)
          return false;
@@ -320,6 +356,132 @@ renderer_set_size(FFVARendererX11 *rnd, uint32_t width, uint32_t height)
     rnd->window_width = width;
     rnd->window_height = height;
     return true;
+}
+
+static void
+renderer_resize(FFVARendererX11 *rnd, int x, int y, uint32_t width, uint32_t height)
+{
+    av_log(rnd, AV_LOG_ERROR, "x11   renderer_resize ------------------------------\n");
+    if (!rnd->window || !rnd->display)
+        return;
+
+    XWindowAttributes wattr;
+
+    XGetWindowAttributes(rnd->display, rnd->root_window, &wattr);
+
+    Atom actual_type;
+    int actual_format;
+    unsigned long nitems, bytes_after;
+    unsigned char *data = NULL;
+    Atom wm_state = XInternAtom(rnd->display, "_NET_WM_STATE", False);
+    Atom fullscreen = XInternAtom(rnd->display, "_NET_WM_STATE_FULLSCREEN", False);
+
+    int status = XGetWindowProperty(rnd->display, rnd->window, wm_state,
+                                    0, (~0L), False, AnyPropertyType,
+                                    &actual_type, &actual_format,
+                                    &nitems, &bytes_after, &data);
+
+    if (status == Success && data) {
+        Atom *states = (Atom *)data;
+        for (unsigned long i = 0; i < nitems; ++i) {
+            if (states[i] == fullscreen) {
+                XFree(data);
+                rnd->is_fullscreen = true;
+                break;
+            }
+        }
+        // XFree(data);
+    }
+    if (rnd->is_fullscreen)
+    {
+        printf("fullscreen\n");
+        XEvent xev;
+        Atom wm_state = XInternAtom(rnd->display, "_NET_WM_STATE", False);
+        Atom fullscreen = XInternAtom(rnd->display, "_NET_WM_STATE_FULLSCREEN", False);
+
+        memset(&xev, 0, sizeof(xev));
+        xev.type = ClientMessage;
+        xev.xclient.window = rnd->window;
+        xev.xclient.message_type = wm_state;
+        xev.xclient.format = 32;
+        xev.xclient.data.l[0] = 0; // _NET_WM_STATE_ADD/REMOVE
+        xev.xclient.data.l[1] = fullscreen;
+        xev.xclient.data.l[2] = 0; // No second property
+
+        XSendEvent(rnd->display, DefaultRootWindow(rnd->display), False,
+                SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+        XSync(rnd->display, False);
+        rnd->is_fullscreen = false;
+    }
+    {
+        XEvent x_event;
+        Atom wm_fullscreen;
+
+        x_event.type = ClientMessage;
+        x_event.xclient.window = rnd->window;
+        x_event.xclient.message_type = XInternAtom(rnd->display, "_NET_WM_STATE", False);
+        x_event.xclient.format = 32;
+        x_event.xclient.data.l[0] = 0;  /* 0 = Windowed, 1 = Fullscreen */
+        wm_fullscreen = XInternAtom(rnd->display, "_NET_WM_STATE_FULLSCREEN", False);
+        x_event.xclient.data.l[1] = wm_fullscreen;
+        x_event.xclient.data.l[2] = wm_fullscreen;
+
+        XSendEvent(rnd->display, RootWindow(rnd->display, rnd->screen), False, ClientMessage, &x_event);
+
+        Atom actual_type;
+        int actual_format;
+        unsigned long nitems, bytes_after;
+        unsigned char *data = NULL;
+        Atom wm_state = XInternAtom(rnd->display, "_NET_WM_STATE", False);
+        Atom fullscreen = XInternAtom(rnd->display, "_NET_WM_STATE_FULLSCREEN", False);
+
+        int status = XGetWindowProperty(rnd->display, rnd->window, wm_state,
+                                        0, (~0L), False, AnyPropertyType,
+                                        &actual_type, &actual_format,
+                                        &nitems, &bytes_after, &data);
+
+        if (status == Success && data) {
+            Atom *states = (Atom *)data;
+            for (unsigned long i = 0; i < nitems; ++i) {
+                if (states[i] == fullscreen) {
+                    XFree(data);
+                    rnd->is_fullscreen = true;
+                    break;
+                }
+            }
+            // XFree(data);
+        }
+    }
+    
+    if (rnd->is_fullscreen)
+    {
+        printf("fullscreen too\n");
+    }
+    // if (rnd->window_width == wattr.width && rnd->window_height == wattr.height)
+    // {
+    //     // system()
+    //     char cmd[256], cmd2[256];
+    //     sprintf(cmd, "wmctrl -i -r %d -b toggle,fullscreen\n", rnd->window);
+    //     printf("cmd : %s", cmd);
+    //     system(cmd);
+    //     sprintf(cmd2, "wmctrl -i -r %d -e 0,%d,%d,%d,%d", rnd->window, x, y, width, height);
+    //     printf("cmd2 : %s", cmd2);
+    //     system(cmd2);
+    // }
+    XSizeHints *size_hints = XAllocSizeHints();
+    size_hints->flags = PPosition | PSize | USPosition | USSize;
+    size_hints->x = x;
+    size_hints->y = y;
+    size_hints->width = width;
+    size_hints->height = height;
+    XSetWMNormalHints(rnd->display, rnd->window, size_hints);
+    XFree(size_hints);
+    // XResizeWindow(rnd->display, rnd->window, width, height);
+    // XMoveWindow(rnd->display, rnd->window, 0, 0);
+
+    // XResizeWindow(rnd->display, rnd->window, width, height);
+    XMoveResizeWindow(rnd->display, rnd->window, x, y, width, height);
+    // rnd->window_width = width;
 }
 
 static bool
@@ -410,6 +572,7 @@ ffva_renderer_x11_class(void)
         .set_size       = (FFVARendererSetSizeFunc)renderer_set_size,
         .put_surface    = (FFVARendererPutSurfaceFunc)renderer_put_surface,
         .widow_close    = (FFVARendererWindowcloseFunc)render_window_close,
+        .renderer_resize = (FFVARendererResizeFunc)renderer_resize,
     };
     return &g_class;
 }

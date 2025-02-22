@@ -1137,6 +1137,16 @@ renderer_set_size(FFVARendererEGL *rnd, uint32_t width, uint32_t height)
 }
 
 static void
+renderer_resize(FFVARendererEGL *rnd, int x, int y, uint32_t width, uint32_t height)
+{
+    av_log(rnd, AV_LOG_ERROR, "egl renderer_resize ------------------------------\n");
+    if (!rnd->native_renderer)
+        return;
+    ffva_renderer_resize(rnd->native_renderer, x, y, width, height);
+    return;
+}
+
+static void
 renderer_set_shader_text(FFVARendererEGL *rnd, const char *frag_shader_text,
     const char *vert_shader_text)
 {
@@ -1953,6 +1963,7 @@ ffva_renderer_egl_class(void)
         .renderer_load_text = (FFVARendererLoadTextFunc)renderer_load_text,
         .renderer_adjust_image = (FFVARendererAdjustImageFunc)renderer_adjust_image,
         .renderer_set_center = (FFVARendererSetCenterFunc)renderer_set_center,
+        .renderer_resize = (FFVARendererResizeFunc)renderer_resize,
     };
     return &g_class;
 }
