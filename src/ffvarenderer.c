@@ -223,3 +223,13 @@ void ffva_renderer_set_center(FFVARenderer *rnd, float x, float y)
     klass->renderer_set_center(rnd, x, y);
     return;
 }
+
+void ffva_renderer_resize(FFVARenderer *rnd, int x, int y, uint32_t width, uint32_t height)
+{
+    FFVARendererClass *klass;
+    if (!rnd)
+        return -1;
+    klass=FFVA_RENDERER_GET_CLASS(rnd);
+    klass->renderer_resize(rnd, x, y, width, height);
+    return;
+}

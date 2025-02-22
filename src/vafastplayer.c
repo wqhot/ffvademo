@@ -115,6 +115,11 @@ typedef struct {
     CropRect crop_rect;
     int output_thread_run;
     pthread_t *output_thread;
+    int need_resize;
+    int resize_x;
+    int resize_y;
+    uint32_t resize_w;
+    uint32_t resize_h;
 } App;
 
 #define OFFSET(x) offsetof(App, options.x)
@@ -218,6 +223,7 @@ app_new(void)
         .y1 = 1.0f,
     };
     app->klass = app_class();
+    app->need_resize = 0;
     av_opt_set_defaults(app);
     ffva_surface_init_defaults(&app->filter_surface);
     return app;
@@ -478,6 +484,12 @@ app_renderer_set_center(App *app, float x, float y)
     return ffva_renderer_set_center(app->renderer, x, y);
 }
 
+static void
+app_renderer_resize(App *app, int x, int y, uint32_t width, uint32_t height)
+{
+    return ffva_renderer_resize(app->renderer, x, y, width, height);
+}
+
 static int
 app_render_frame(App *app, FFVADecoderFrame *dec_frame)
 {
@@ -525,6 +537,11 @@ app_decode_frame(App *app)
     ret = ffva_decoder_get_frame(app->decoder, &dec_frame);
     if (ret == 0) {
         ret = app_render_frame(app, dec_frame);
+        if (app->need_resize)
+        {
+            app->need_resize = 0;
+            app_renderer_resize(app, app->resize_x, app->resize_y, app->resize_w, app->resize_h);
+        }
         ffva_decoder_put_frame(app->decoder, dec_frame);
 		/*show too fast, use 25fps instead*/
 		// usleep(40000);
@@ -733,6 +750,16 @@ Fastplayer vafastplayer_init(struct Options *opts)
         return NULL;
     }
     return (void *)app;
+}
+
+void vafastplayer_set_size(Fastplayer player, int x_p, int y_p, uint32_t width_p, uint32_t height_p)
+{
+    App *app = (App *)player;
+    app->need_resize = 1;
+    app->resize_x = x_p;
+    app->resize_y = y_p;
+    app->resize_w = width_p;
+    app->resize_h = height_p;
 }
 
 int vafastplayer_start(Fastplayer player)
