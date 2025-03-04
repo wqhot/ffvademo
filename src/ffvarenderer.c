@@ -233,3 +233,13 @@ void ffva_renderer_resize(FFVARenderer *rnd, int x, int y, uint32_t width, uint3
     klass->renderer_resize(rnd, x, y, width, height);
     return;
 }
+
+void ffva_renderer_update_image(FFVARenderer *rnd, int image_id, const unsigned char *data)
+{
+    FFVARendererClass *klass;
+    if (!rnd)
+        return -1;
+    klass=FFVA_RENDERER_GET_CLASS(rnd);
+    klass->renderer_update_image(rnd, image_id, data);
+    return;
+}

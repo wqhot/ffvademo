@@ -66,6 +66,8 @@ extern "C"
 #define DRM_FORMAT_GR88 fourcc_code('G', 'R', '8', '8')
 #endif
 
+#define IMAGE_FORMAT_RGBA    0
+#define IMAGE_FORMAT_RGB565  1
 static bool
 va_format_to_drm_format(const VAImageFormat *va_format, uint32_t *format_ptr)
 {
@@ -176,6 +178,7 @@ struct egl_context_s {
 
 typedef struct image_overlay {
     GLuint texture;      // OpenGL纹理ID
+    // GLuint texture_uv;
     unsigned int width;           // 图片宽度
     unsigned int height;          // 图片高度
     float pos_x;         // X坐标 (归一化坐标0-1)
@@ -186,6 +189,7 @@ typedef struct image_overlay {
     int crop_y0;
     int crop_x1;
     int crop_y1;
+    int format;
     unsigned char* data;
     EglProgram *program;
 } image_overlay;
@@ -390,6 +394,20 @@ static const char *frag_shader_text_yuv =
     YUV2RGB_COLOR(BT601_LIMITED)
     "}\n";
 
+static const char *frag_shader_text_rgb565 =
+    "#ifdef GL_ES\n"
+    "precision mediump float;\n"
+    "#endif\n"
+    "uniform sampler2D tex0;\n"
+    "varying vec2 v_texcoord;\n"
+    "\n"
+    "void main() {\n"
+    "    vec3 rgb;\n"
+    "    rgb = texture2D(tex0, v_texcoord).rgb;\n"
+    "    gl_FragColor = vec4(rgb, 1.0);\n"
+    "}\n";
+
+    
 #if USE_GLES_VERSION != 0
 static const char *frag_shader_text_egl_external =
     "#extension GL_OES_EGL_image_external : require\n"
@@ -846,26 +864,78 @@ image_overlay* image_overlay_create(const char* filename)
     overlay->crop_x1 = width;
     overlay->crop_y0 = 0;
     overlay->crop_y1 = height;
+    overlay->format = IMAGE_FORMAT_RGBA;
+    return overlay;
+}
+
+image_overlay* image_overlay_create_yuv422(int width, int height)
+{
+    unsigned char* data = (unsigned char*)calloc(width * height * 4, sizeof(unsigned char));
+    if (!data) return NULL;
+    image_overlay* overlay = (image_overlay*)calloc(1, sizeof(image_overlay));
+    overlay->width = width;
+    overlay->height = height;
+    overlay->scale = 1.0f;
+    overlay->program = NULL;
+    overlay->texture = 0;
+    overlay->data = data;
+    overlay->pos_x = 0.5;
+    overlay->pos_y = 0.5;
+    overlay->rotation = 0.0f;
+    overlay->crop_x0 = 0;
+    overlay->crop_x1 = width;
+    overlay->crop_y0 = 0;
+    overlay->crop_y1 = height;
+    overlay->format = IMAGE_FORMAT_RGB565;
     return overlay;
 }
 
 static void create_image_overlay_context(image_overlay* overlay)
 {
-    overlay->program = egl_program_new(frag_shader_text_rgba, vert_shader_image);
+    const char* frag_shader = overlay->format == IMAGE_FORMAT_RGB565 ? frag_shader_text_rgb565 : frag_shader_text_rgba;
+    
+    overlay->program = egl_program_new(frag_shader, vert_shader_image);
     if (!overlay->program) {
         glDeleteTextures(1, &overlay->texture);
+        // glDeleteTextures(1, &overlay->texture_uv);
         free(overlay);
         printf("Failed to create program\n");
         return;
     }
+    
     glUseProgram(overlay->program->program);
     glGenTextures(1, &overlay->texture);
     glBindTexture(GL_TEXTURE_2D, overlay->texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, overlay->width, overlay->height, 
+
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 
+                overlay->width, overlay->height,
                 0, GL_RGBA, GL_UNSIGNED_BYTE, overlay->data);
+
+    
     gl_texture_init_defaults(overlay->texture, GL_TEXTURE_2D);
-    stbi_image_free(overlay->data);
+    if (overlay->format == IMAGE_FORMAT_RGBA)
+    {
+        stbi_image_free(overlay->data);
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
     glUseProgram(0);
+}
+
+static bool update_image_overlay_texture(FFVARendererEGL* rnd, int index, 
+                                        const unsigned char* data)
+{
+    if (index < 0 || index >= rnd->num_overlays)
+        return false;
+    image_overlay* overlay = rnd->overlays[index];
+    if (!overlay)
+        return false;
+
+    if (overlay->format == IMAGE_FORMAT_RGB565) 
+    {
+        memcpy(overlay->data, data, overlay->width * overlay->height * 2);
+    }
+    return true;
 }
 
 static void matrix_multiply(GLfloat *result, GLfloat *a, GLfloat *b)
@@ -958,12 +1028,17 @@ static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_ove
     glBindTexture(GL_TEXTURE_2D, overlay->texture);
     if (program)
         glUniform1i(program->tex_uniforms[0], 0);
-
+    if (overlay->format == IMAGE_FORMAT_RGB565)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                    overlay->width, overlay->height,  
+                    0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, overlay->data);
+    }
+    
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(0);
-
     if (program)
         glUseProgram(0);
 }
@@ -1068,6 +1143,10 @@ static void image_overlay_set_transform(image_overlay* overlay,
                                         float x, float y, 
                                         float scale, float rotation) 
 {
+    if (overlay->format == IMAGE_FORMAT_RGB565)
+    {
+        return;
+    }
     overlay->pos_x = x;
     overlay->pos_y = y;
     overlay->scale = scale;
@@ -1637,11 +1716,29 @@ static bool
 renderer_redraw(FFVARendererEGL *rnd, FFVASurface *s,
     const VARectangle *src_rect, const VARectangle *dst_rect)
 {
+    bool no_video = false;
     EglContext * const egl = &rnd->egl_context;
     EglProgram *program;
     GLfloat x0, y0, x1, y1;
     GLfloat texcoords[4][2];
     GLfloat positions[4][2];
+    if (rnd->num_overlays > 0)
+    {
+        if (rnd->overlays[0]->format == IMAGE_FORMAT_RGB565)
+        {
+            no_video = true;
+        }
+    }
+    if (no_video)
+    {
+        rnd->egl_context.target_width = rnd->overlays[0]->width;
+        rnd->egl_context.target_height = rnd->overlays[0]->height;
+        float scale = (float)dst_rect->width / rnd->overlays[0]->width;
+        rnd->overlays[0]->scale = scale;
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        glViewport(0, 0, dst_rect->width, dst_rect->height);
+        goto NO_VIDEO;
+    }
     rnd->egl_context.target_width = dst_rect->width;
     rnd->egl_context.target_height = dst_rect->height;
     uint32_t i;
@@ -1718,6 +1815,7 @@ renderer_redraw(FFVARendererEGL *rnd, FFVASurface *s,
     if (program)
         glUseProgram(0);
 #endif
+NO_VIDEO:
     for (int i = 0; i < rnd->num_overlays; i++) 
     {
         render_image_overlay(rnd, s, rnd->overlays[i],src_rect, dst_rect);
@@ -1911,7 +2009,15 @@ static int renderer_load_image(FFVARendererEGL *rnd, const char *image_path, flo
     if (!rnd) 
         return -1;
     rnd->overlays = (image_overlay **)realloc(rnd->overlays, (rnd->num_overlays + 1) * sizeof(image_overlay*));
-    image_overlay* overlay = image_overlay_create(image_path);
+    image_overlay* overlay;
+    if (image_path == NULL)
+    {
+        overlay = image_overlay_create_yuv422((int)x, int(y));
+    }
+    else
+    {
+        overlay = image_overlay_create(image_path);
+    }
     if (!overlay)
     {
         av_log(rnd, AV_LOG_ERROR, "failed to create image overlay\n");
@@ -1964,6 +2070,7 @@ ffva_renderer_egl_class(void)
         .renderer_adjust_image = (FFVARendererAdjustImageFunc)renderer_adjust_image,
         .renderer_set_center = (FFVARendererSetCenterFunc)renderer_set_center,
         .renderer_resize = (FFVARendererResizeFunc)renderer_resize,
+        .renderer_update_image = (FFVARendererUpdateImageFunc)update_image_overlay_texture,
     };
     return &g_class;
 }
