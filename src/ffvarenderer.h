@@ -84,4 +84,6 @@ void ffva_renderer_set_center(FFVARenderer *rnd, float x, float y);
 
 void ffva_renderer_resize(FFVARenderer *rnd, int x, int y, uint32_t width, uint32_t height);
 
+void ffva_renderer_update_image(FFVARenderer *rnd, int image_id, const unsigned char *data);
+
 #endif /* FFVA_RENDERER_H */

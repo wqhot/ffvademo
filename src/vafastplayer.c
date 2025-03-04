@@ -490,6 +490,12 @@ app_renderer_resize(App *app, int x, int y, uint32_t width, uint32_t height)
     return ffva_renderer_resize(app->renderer, x, y, width, height);
 }
 
+static void
+app_renderer_update_image(App *app, int image_id, const unsigned char *data)
+{
+    return ffva_renderer_update_image(app->renderer, image_id, data);
+}
+
 static int
 app_render_frame(App *app, FFVADecoderFrame *dec_frame)
 {
@@ -760,6 +766,12 @@ void vafastplayer_set_size(Fastplayer player, int x_p, int y_p, uint32_t width_p
     app->resize_y = y_p;
     app->resize_w = width_p;
     app->resize_h = height_p;
+}
+
+void vafastplayer_update_image(Fastplayer player, int image_id, const unsigned char *data)
+{
+    App *app = (App *)player;
+    app_renderer_update_image(app, image_id, data);
 }
 
 int vafastplayer_start(Fastplayer player)

@@ -47,6 +47,9 @@ void vafastplayer_set_center(Fastplayer player, float x_u, float y_u);
 FASTPLAYERAPI
 void vafastplayer_set_size(Fastplayer player, int x_p, int y_p, uint32_t width_p, uint32_t height_p);
 
+FASTPLAYERAPI
+void vafastplayer_update_image(Fastplayer player, int image_id, const unsigned char *data);
+
 // FASTPLAYERAPI
 // bool vafastplayer_adjust_text(Fastplayer player, int text_id, const char *text, float x, float y);
 

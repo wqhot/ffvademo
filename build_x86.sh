@@ -13,7 +13,7 @@ mkdir -p "$BUILD_DIR/"
 # Run the docker container and mount the source and build directories
 docker run -v "$SOURCE_DIR:/project" \
            -w "/project/build_gcc11" \
-           -it wqhot/gcc9:v1.0 \
+           -it wqhot/gcc9:v1.4 \
            /bin/bash -c "\
                 git config --global --add safe.directory /project && \
                 cmake /project && \
