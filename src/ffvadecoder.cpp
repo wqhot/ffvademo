@@ -843,7 +843,11 @@ decoder_run(FFVADecoder *dec)
             packet.size = dec->rtsp_dec_buffer.size();
         }
         if (read_frame_ret == AVERROR_EOF)
-            break;
+        {
+            avcodec_flush_buffers(dec->avctx);
+            av_seek_frame(dec->fmtctx, dec->stream->index, 0, AVSEEK_FLAG_BACKWARD);
+            continue;
+        }
         else if (read_frame_ret < 0)
             goto error_read_frame;
 
