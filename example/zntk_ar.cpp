@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
     int text = vafastplayer_add_text(player, "/usr/share/fastplayer/source.otf", "IHello World!\n计算所", 48, 0.2, 0.2);
     int turret = vafastplayer_add_image(player, "/usr/share/fastplayer/tank_turret.png", 0.8, 0.8, 0.8, 3.14/7);
     vafastplayer_set_center(player, 0.2, 0.7);
+    vafastplayer_update_image(player, yuv, data);
     
     int count = 0;
     printf("focus = %d, text = %d, turret = %d\n", focus, text, turret);

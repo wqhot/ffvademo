@@ -3,7 +3,7 @@
 # Define the source directory
 SOURCE_DIR="$(dirname $0)"
 
-KYLIN_LIB="${HOME}/cross_libs"
+KYLIN_LIB="${HOME}/kylin_rk3588/kylin_d2000"
 
 # Define the build directory
 BUILD_DIR="${SOURCE_DIR}/arm_build"
