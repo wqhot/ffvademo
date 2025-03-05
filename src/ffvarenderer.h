@@ -76,6 +76,8 @@ ffva_render_get_signal_window_close(FFVARenderer *rnd);
 
 int ffva_renderer_load_image(FFVARenderer *rnd, const char *image_path, float x, float y, float scale, float rotation);
 
+int ffva_renderer_add_image_data(FFVARenderer *rnd, int width, int height, unsigned char *data);
+
 int ffva_renderer_load_text(FFVARenderer *rnd, const char *font_path, const char *text_context, int font_size, float x, float y);
 
 bool ffva_renderer_adjust_image(FFVARenderer *rnd, int image_id, float x, float y, float scale, float rotation);
@@ -84,6 +86,6 @@ void ffva_renderer_set_center(FFVARenderer *rnd, float x, float y);
 
 void ffva_renderer_resize(FFVARenderer *rnd, int x, int y, uint32_t width, uint32_t height);
 
-void ffva_renderer_update_image(FFVARenderer *rnd, int image_id, const unsigned char *data);
+void ffva_renderer_update_image(FFVARenderer *rnd, int image_id, unsigned char *data);
 
 #endif /* FFVA_RENDERER_H */

@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
     Fastplayer player = vafastplayer_init(&opt);
     Fastplayer player2 = vafastplayer_init(&opt2);
     // 构造一个yuv422 1080p的彩色条纹图像
-    unsigned char *data = (unsigned char *)malloc(1920 * 1080 * 2);
+    unsigned char *data = (unsigned char *)malloc(1920 * 1080 * 4);
     std::ifstream file("output.rgb", std::ios::binary);
     file.read((char *)data, 1920 * 1080 * 2);
     if (!player) {
@@ -33,12 +33,11 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Failed to run application\n");
     }
     printf("start__\n");
-    int yuv = vafastplayer_add_image(player, NULL, 1920, 1080, 1.0, 0.0);
+    int yuv = vafastplayer_add_image_data(player, 1920, 1080, data);
     int focus = vafastplayer_add_image(player, "/usr/share/fastplayer/focus.png", 0.5, 0.5, 1.0, 3.14/4);
     int text = vafastplayer_add_text(player, "/usr/share/fastplayer/source.otf", "IHello World!\n计算所", 48, 0.2, 0.2);
     int turret = vafastplayer_add_image(player, "/usr/share/fastplayer/tank_turret.png", 0.8, 0.8, 0.8, 3.14/7);
     vafastplayer_set_center(player, 0.2, 0.7);
-    vafastplayer_update_image(player, yuv, data);
     
     int count = 0;
     printf("focus = %d, text = %d, turret = %d\n", focus, text, turret);
@@ -54,7 +53,6 @@ int main(int argc, char *argv[])
             // vafastplayer_crop_video(player, 0.1, 0.1, 0.8, 0.5);
             vafastplayer_set_size(player, 0, 0, 1280, 720);
             vafastplayer_set_size(player2, 1280 - 320, 720 - 180, 320, 180);
-            vafastplayer_update_image(player, yuv, data);
         }
     }
 

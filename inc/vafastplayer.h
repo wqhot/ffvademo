@@ -33,6 +33,9 @@ FASTPLAYERAPI
 int vafastplayer_add_image(Fastplayer player, char *image_path, float x_u, float y_u, float scale_u, float rotation);
 
 FASTPLAYERAPI
+int vafastplayer_add_image_data(Fastplayer player, int w, int h, unsigned char *data);
+
+FASTPLAYERAPI
 int vafastplayer_add_text(Fastplayer player, const char* font, const char *text, int font_size_p, float x_u, float y_u);
 
 FASTPLAYERAPI
@@ -48,7 +51,7 @@ FASTPLAYERAPI
 void vafastplayer_set_size(Fastplayer player, int x_p, int y_p, uint32_t width_p, uint32_t height_p);
 
 FASTPLAYERAPI
-void vafastplayer_update_image(Fastplayer player, int image_id, const unsigned char *data);
+void vafastplayer_update_image(Fastplayer player, int image_id, unsigned char *data);
 
 // FASTPLAYERAPI
 // bool vafastplayer_adjust_text(Fastplayer player, int text_id, const char *text, float x, float y);

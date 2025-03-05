@@ -875,9 +875,8 @@ image_overlay* image_overlay_create(const char* filename)
     return overlay;
 }
 
-image_overlay* image_overlay_create_yuv422(int width, int height)
+image_overlay* image_overlay_create_yuv422(int width, int height, unsigned char *data)
 {
-    unsigned char* data = (unsigned char*)calloc(width * height * 4, sizeof(unsigned char));
     if (!data) return NULL;
     image_overlay* overlay = (image_overlay*)calloc(1, sizeof(image_overlay));
     overlay->width = width;
@@ -886,6 +885,7 @@ image_overlay* image_overlay_create_yuv422(int width, int height)
     overlay->program = NULL;
     overlay->texture = 0;
     overlay->data = data;
+    // overlay->data = (unsigned char*)calloc(width * height * 3, sizeof(unsigned char));
     overlay->pos_x = 0.5;
     overlay->pos_y = 0.5;
     overlay->rotation = 0.0f;
@@ -894,6 +894,7 @@ image_overlay* image_overlay_create_yuv422(int width, int height)
     overlay->crop_y0 = 0;
     overlay->crop_y1 = height;
     overlay->format = IMAGE_FORMAT_RGB565;
+    printf("rgb565 data: %x\n", data);
     return overlay;
 }
 
@@ -914,10 +915,19 @@ static void create_image_overlay_context(image_overlay* overlay)
     glGenTextures(1, &overlay->texture);
     glBindTexture(GL_TEXTURE_2D, overlay->texture);
 
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 
-                overlay->width, overlay->height,
-                0, GL_RGBA, GL_UNSIGNED_BYTE, overlay->data);
+    if (overlay->format == IMAGE_FORMAT_RGB565)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+            overlay->width, overlay->height,  
+            0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, overlay->data);
+    }
+    else
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 
+            overlay->width, overlay->height,
+            0, GL_RGBA, GL_UNSIGNED_BYTE, overlay->data);
+    }
+    
 
     
     gl_texture_init_defaults(overlay->texture, GL_TEXTURE_2D);
@@ -930,7 +940,7 @@ static void create_image_overlay_context(image_overlay* overlay)
 }
 
 static bool update_image_overlay_texture(FFVARendererEGL* rnd, int index, 
-                                        const unsigned char* data)
+                                        unsigned char* data)
 {
     if (index < 0 || index >= rnd->num_overlays)
         return false;
@@ -940,7 +950,8 @@ static bool update_image_overlay_texture(FFVARendererEGL* rnd, int index,
 
     if (overlay->format == IMAGE_FORMAT_RGB565) 
     {
-        memcpy(overlay->data, data, overlay->width * overlay->height * 2);
+        // memcpy(overlay->data, data, overlay->width * overlay->height * 2);
+        overlay->data = (unsigned char*)data;
     }
     return true;
 }
@@ -2021,14 +2032,7 @@ static int renderer_load_image(FFVARendererEGL *rnd, const char *image_path, flo
         return -1;
     rnd->overlays = (image_overlay **)realloc(rnd->overlays, (rnd->num_overlays + 1) * sizeof(image_overlay*));
     image_overlay* overlay;
-    if (image_path == NULL)
-    {
-        overlay = image_overlay_create_yuv422((int)x, int(y));
-    }
-    else
-    {
-        overlay = image_overlay_create(image_path);
-    }
+    overlay = image_overlay_create(image_path);
     if (!overlay)
     {
         av_log(rnd, AV_LOG_ERROR, "failed to create image overlay\n");
@@ -2036,6 +2040,23 @@ static int renderer_load_image(FFVARendererEGL *rnd, const char *image_path, flo
     }
     rnd->overlays[rnd->num_overlays] = overlay;
     image_overlay_set_transform(rnd->overlays[rnd->num_overlays], x, y, scale, rotation);
+    rnd->num_overlays = rnd->num_overlays + 1;
+    return rnd->num_overlays - 1;
+}
+
+static int renderer_add_image_data(FFVARendererEGL *rnd, int width, int height, unsigned char *data)
+{
+    if (!rnd) 
+        return -1;
+    rnd->overlays = (image_overlay **)realloc(rnd->overlays, (rnd->num_overlays + 1) * sizeof(image_overlay*));
+    image_overlay* overlay;
+    overlay = image_overlay_create_yuv422(width, height, data);
+    if (!overlay)
+    {
+        av_log(rnd, AV_LOG_ERROR, "failed to create image overlay\n");
+        return -1;
+    }
+    rnd->overlays[rnd->num_overlays] = overlay;
     rnd->num_overlays = rnd->num_overlays + 1;
     return rnd->num_overlays - 1;
 }
@@ -2077,6 +2098,7 @@ ffva_renderer_egl_class(void)
         .set_size       = (FFVARendererSetSizeFunc)renderer_set_size,
         .put_surface    = (FFVARendererPutSurfaceFunc)renderer_put_surface,
         .renderer_load_image = (FFVARendererLoadImageFunc)renderer_load_image,
+        .renderer_add_image_data = (FFVARendererAddImageData)renderer_add_image_data,
         .renderer_load_text = (FFVARendererLoadTextFunc)renderer_load_text,
         .renderer_adjust_image = (FFVARendererAdjustImageFunc)renderer_adjust_image,
         .renderer_set_center = (FFVARendererSetCenterFunc)renderer_set_center,
