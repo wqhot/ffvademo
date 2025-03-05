@@ -33,6 +33,8 @@ if (PLATFORM STREQUAL "ARM")
     link_directories("${CMAKE_SOURCE_DIR}/ext/openssl_aarch64/lib")
     include_directories("${CMAKE_SOURCE_DIR}/ext/openssl_aarch64/include")
     link_directories("${CMAKE_SOURCE_DIR}/ext/gl_aarch64/lib")
+    include_directories("${CMAKE_FIND_ROOT_PATH}/include/aarch64-linux-gnu")
+    link_directories("${CMAKE_FIND_ROOT_PATH}/lib/aarch64-linux-gnu")
 endif ()
 
 add_definitions(-DUSE_EGL)
@@ -114,7 +116,7 @@ target_link_libraries(${target_name}
 
 if (PLATFORM STREQUAL "ARM")
 target_link_libraries(${target_name}
-${CMAKE_SOURCE_DIR}/ext/ffmpeg_aarch64/lib/libc.so.6
+${CMAKE_FIND_ROOT_PATH}/lib/aarch64-linux-gnu/libc.so.6
 )
 endif ()
 
@@ -130,27 +132,18 @@ SET(MAJOR_VERSION 1)
 SET(MINOR_VERSION 0)
 SET(PATCH_VERSION 0)
 
-#说明要生成的是deb包
 if (PLATFORM STREQUAL "ARM")
-SET(CPACK_GENERATOR "DEB;RPM")
+SET(CPACK_GENERATOR "DEB")
 else()
 SET(CPACK_GENERATOR "DEB")
 endif()
-
-##############设置debian/control文件中的内容###############
-
-#设置版本信息
 SET(CPACK_PACKAGE_VERSION_MAJOR "${MAJOR_VERSION}")
 SET(CPACK_PACKAGE_VERSION_MINOR "${MINOR_VERSION}")
 SET(CPACK_PACKAGE_VERSION_PATCH "${PATCH_VERSION}")
 
-#设置安装包的包名，打好的包将会是packagename-version-linux.deb，如果不设置，默认是工程名
 set(CPACK_PACKAGE_NAME "fastplayer_va")
-
-#设置程序名，就是程序安装后的名字
 set(CPACK_DEBIAN_PACKAGE_NAME "fastplayer_va")
 
-#设置架构
 if (PLATFORM STREQUAL "ARM")
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64")
     if (CPACK_GENERATOR MATCHES "DEB")
@@ -176,14 +169,8 @@ else ()
 SET(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libx11-6, libavutil56, libavdevice58, libavcodec58, libavformat58, libxdmcp6, libbsd0")
 endif ()
 
-
-#设置description
 SET(CPACK_PACKAGE_DESCRIPTION "fastplayer_va")
-
-#设置联系方式
 SET(CPACK_PACKAGE_CONTACT "wqhot@outlook.com")
-
-#设置维护人
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "wq")
 
 include(CPack)
@@ -192,18 +179,12 @@ SET(LIBS_DIR ${CMAKE_BINARY_DIR})
 SET(BINARY_DIR ${CMAKE_BINARY_DIR}/example)
 SET(INC_DIR ${CMAKE_SOURCE_DIR}/inc)
 
-# 安装二进制可执行文件
 install(TARGETS zntk_ar
         RUNTIME DESTINATION bin PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ)
 
-# 安装共享库文件
 install(TARGETS fastplayer_va
         LIBRARY DESTINATION lib)
-
-# 安装头文件
 install(FILES ${INC_DIR}/vafastplayer.h ${INC_DIR}/vafastplayer.h
         DESTINATION include)
-
-# 安装资源文件
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/example/res/
         DESTINATION share/fastplayer)

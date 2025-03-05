@@ -42,7 +42,7 @@ extern "C"
 
 #include <unordered_map>
 #include <locale.h>
-#include <freetype2/ft2build.h>
+#include <ft2build.h>
 #include FT_FREETYPE_H
 
 /* Define the VA buffer memory type to use. 0:let the driver decide */
