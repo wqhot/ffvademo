@@ -399,14 +399,21 @@ static const char *frag_shader_text_rgb565 =
     "precision mediump float;\n"
     "#endif\n"
     "uniform sampler2D tex0;\n"
+    "uniform vec2 center;                          \n"
+    "const float magnification = 2.0;                          \n"
+    "const float lens_magn_r = 0.125;                          \n"
     "varying vec2 v_texcoord;\n"
     "\n"
     "void main() {\n"
+    "    float mouse_dist = distance(v_texcoord, center);   \n"
     "    vec3 rgb;\n"
-    "    rgb = texture2D(tex0, v_texcoord).rgb;\n"
+    "    if (mouse_dist < lens_magn_r) { \n"
+    "       rgb = texture2D(tex0, center + (v_texcoord - center) / magnification).rgb;\n"
+    "    }else { \n"
+    "       rgb = texture2D(tex0, v_texcoord).rgb;\n"
+    "    }\n"
     "    gl_FragColor = vec4(rgb, 1.0);\n"
     "}\n";
-
     
 #if USE_GLES_VERSION != 0
 static const char *frag_shader_text_egl_external =
@@ -1033,6 +1040,10 @@ static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_ove
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
                     overlay->width, overlay->height,  
                     0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, overlay->data);
+    }
+    if (program && overlay->format == IMAGE_FORMAT_RGB565)
+    {
+        glUniform2f(program->center_uniform, rnd->center_x, rnd->center_y);
     }
     
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
