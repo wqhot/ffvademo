@@ -416,6 +416,39 @@ static const char *frag_shader_text_rgb565 =
     "    }\n"
     "    gl_FragColor = vec4(rgb, 1.0);\n"
     "}\n";
+
+static const char *frag_shader_text_yuv422 = 
+R"(
+    #version 300 es
+    precision mediump float;
+    uniform sampler2D tex0;
+    uniform vec2 center; 
+    const float magnification = 2.0; 
+    const float lens_magn_r = 0.125;
+    in vec2 v_texcoord;
+    out vec4 FragColor;
+    void main(){
+        float texS = v_texcoord.x;
+        float mouse_dist = distance(v_texcoord, center);
+        vec4 vyuy = texture(tex0, vec2(texS, v_texcoord.y)); 
+        if (mouse_dist < lens_magn_r) {
+            vyuy = texture(tex0, center + (vec2(texS, v_texcoord.y) - center) / magnification);
+        }
+        float y = (fract(v_texcoord.x * 0.5) < 0.5) ? vyuy.g : vyuy.a;
+        float u = vyuy.b;
+        float v = vyuy.r;
+
+        y = y * 1.16438281; // Y范围调整
+        u = u - 0.5;
+        v = v - 0.5;
+        vec3 yuv = vec3(y, u, v);
+        vec3 rgb;
+        rgb = mat3(1.164,  1.164,  1.164,
+		               0.0,   -0.213,  2.112,
+		               1.793, -0.533,  0.0) * yuv;
+        FragColor = vec4(rgb, 1.0);
+    }
+)";
     
 #if USE_GLES_VERSION != 0
 static const char *frag_shader_text_egl_external =
@@ -442,6 +475,24 @@ static const char* vert_shader_image =
     "attribute vec2 position;\n"
     "attribute vec2 texcoord;\n"
     "varying vec2 v_texcoord;\n"
+    "\n"
+    "void main() {\n"
+    "    gl_Position = proj * model * vec4(position, 0.0, 1.0);\n"
+    "    v_texcoord  = texcoord;\n"
+    "}\n";
+
+static const char* vert_shader_image_3 =  
+    "#version 300 es\n"
+    "#ifdef GL_ES\n"
+    "precision mediump float;\n"
+    "#endif\n"
+    "\n"
+    "uniform mat4 proj;\n"
+    "uniform mat4 model;\n"         // 新增模型矩阵
+    "\n"
+    "layout(location=0) in vec2 position;\n"
+    "layout(location=1) in vec2 texcoord;\n"
+    "out vec2 v_texcoord;\n"
     "\n"
     "void main() {\n"
     "    gl_Position = proj * model * vec4(position, 0.0, 1.0);\n"
@@ -936,9 +987,10 @@ image_overlay* image_overlay_create_fc(unsigned src_id,
 
 static void create_image_overlay_context(image_overlay* overlay)
 {
-    const char* frag_shader = overlay->format == IMAGE_FORMAT_RGB565 ? frag_shader_text_rgb565 : frag_shader_text_rgba;
+    const char* frag_shader = overlay->format == IMAGE_FORMAT_RGB565 ? frag_shader_text_yuv422 : frag_shader_text_rgba;
+    const char* vert_shader = overlay->format == IMAGE_FORMAT_RGB565 ? vert_shader_image_3 : vert_shader_image;
     
-    overlay->program = egl_program_new(frag_shader, vert_shader_image);
+    overlay->program = egl_program_new(frag_shader, vert_shader);
     if (!overlay->program) {
         glDeleteTextures(1, &overlay->texture);
         // glDeleteTextures(1, &overlay->texture_uv);
@@ -953,9 +1005,9 @@ static void create_image_overlay_context(image_overlay* overlay)
 
     if (overlay->format == IMAGE_FORMAT_RGB565)
     {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-            overlay->width, overlay->height,  
-            0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, overlay->data);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+            overlay->width / 2, overlay->height,  
+            0, GL_RGBA, GL_UNSIGNED_BYTE, overlay->data);
     }
     else
     {
@@ -1084,9 +1136,9 @@ static void render_image_overlay(FFVARendererEGL* rnd, FFVASurface *s, image_ove
         glUniform1i(program->tex_uniforms[0], 0);
     if (overlay->format == IMAGE_FORMAT_RGB565)
     {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                    overlay->width, overlay->height,  
-                    0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, overlay->data);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+                    overlay->width / 2, overlay->height,  
+                    0, GL_RGBA, GL_UNSIGNED_BYTE, overlay->data);
     }
     if (program && overlay->format == IMAGE_FORMAT_RGB565)
     {

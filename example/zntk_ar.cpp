@@ -33,7 +33,19 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Failed to run application\n");
     }
     printf("start__\n");
-    int yuv = vafastplayer_add_image_data(player, 1920, 1080, data);
+    
+    int yuv = vafastplayer_add_fc(player, 
+                                   0x1001a,
+                                   10108,
+                                    1920,
+                                    1080,
+                                    16,
+                                    0,
+                                    0,
+                                    0,
+                                    0,
+                                    0);
+    // int yuv = vafastplayer_add_image_data(player, 1920, 1080, data);
     int focus = vafastplayer_add_image(player, "/usr/share/fastplayer/focus.png", 0.5, 0.5, 1.0, 3.14/4);
     int text = vafastplayer_add_text(player, "/usr/share/fastplayer/source.otf", "IHello World!\n计算所", 48, 0.2, 0.2);
     int turret = vafastplayer_add_image(player, "/usr/share/fastplayer/tank_turret.png", 0.8, 0.8, 0.8, 3.14/7);

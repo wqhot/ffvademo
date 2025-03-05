@@ -6,6 +6,7 @@
 #include <sys/mman.h>
 #include <memory.h>
 #include <thread>
+#include <stdlib.h>
 
 FCReceiver *FCReceiver::getInstance()
 {
@@ -24,11 +25,11 @@ void FCReceiver::gotFrame()
     cond.notify_all();
 }
 
-void FCReceiver::init(unsigned src_id, 
-                      unsigned vid, 
-                      unsigned width, 
-                      unsigned height, 
-                      unsigned colorbit, 
+void FCReceiver::init(unsigned src_id,
+                      unsigned vid,
+                      unsigned width,
+                      unsigned height,
+                      unsigned colorbit,
                       ColorType colorType,
                       unsigned local_port_id,
                       unsigned syn_flag,
@@ -88,32 +89,45 @@ void FCReceiver::start()
         return;
     }
 
-    av_rx_ctrl(vid, 1, src_id, 
-               posx, posy, width, height, 
-               colorbit + (int)colorType * 0xffff + local_port_id * 0x80000000 + syn_flag,
-               rxBuf);
-
     rgbBuf = new unsigned char[height * width * 2];
     std::thread fc_thread(recvFrame);
     fc_thread.detach();
 
-    int res_sig = add_avrx_handler(sig_handler, vid);
     usleep(125000);
 }
 
 void FCReceiver::recvFrame()
-{   
-    av_rx_ctrl(FCReceiver::getInstance()->vid, 1, 
-               FCReceiver::getInstance()->src_id, 
-               FCReceiver::getInstance()->posx, 
-               FCReceiver::getInstance()->posy, 
-               FCReceiver::getInstance()->width, 
-               FCReceiver::getInstance()->height, 
-               FCReceiver::getInstance()->colorbit + 
-               (int)(FCReceiver::getInstance()->colorType) * 0xffff + 
-               FCReceiver::getInstance()->local_port_id * 0x80000000 + 
-               FCReceiver::getInstance()->syn_flag,
+{
+    char *grp_ids = getenv("FP_FC_GRPID");
+    char *vids = getenv("FP_FC_GRPID");
+
+    unsigned grp_id = myatoi(grp_ids);
+    FCReceiver::getInstance()->vid = myatoi(vids);
+
+    FCReceiver::getInstance()->local_port_id = getNPortId(0);
+    
+    av_rx_ctrl(FCReceiver::getInstance()->vid, 1,
+               FCReceiver::getInstance()->src_id,
+               FCReceiver::getInstance()->posx,
+               FCReceiver::getInstance()->posy,
+               FCReceiver::getInstance()->width,
+               FCReceiver::getInstance()->height,
+               FCReceiver::getInstance()->colorbit +
+                   (int)(FCReceiver::getInstance()->colorType) * 0xffff +
+                //    FCReceiver::getInstance()->local_port_id * 0x80000000 +
+                   FCReceiver::getInstance()->syn_flag,
                FCReceiver::getInstance()->rxBuf);
+
+    int res_sig = add_avrx_handler(sig_handler, -1);
+    printf("group id = 0x%x, vid = %d, res_sig = 0x%x\n", grp_id, FCReceiver::getInstance()->vid, res_sig);
+    printf("port id = 0x%x\n", FCReceiver::getInstance()->local_port_id);
+
+    // common_Initial(0,0,0,0,0); //TODO
+    common_ExitGrp(grp_id, FCReceiver::getInstance()->local_port_id);
+    common_AddGrp(grp_id, FCReceiver::getInstance()->local_port_id);
+
+    write_reg("70", 0xff & grp_id);
+
     while (FCReceiver::getInstance()->rxBuf)
     {
         std::unique_lock<std::mutex> lock(FCReceiver::getInstance()->mtx);
