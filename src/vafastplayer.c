@@ -467,6 +467,12 @@ app_renderer_add_image(App *app, const char *image_path, float x, float y, float
 }
 
 static int
+app_renderer_add_image_data(App *app, int width, int height, unsigned char *data)
+{
+    return ffva_renderer_add_image_data(app->renderer, width, height, data);
+}
+
+static int
 app_renderer_add_text(App *app, const char *font_path, const char *text_context, int font_size, float x, float y)
 {
     return ffva_renderer_load_text(app->renderer, font_path, text_context, font_size, x, y);
@@ -491,7 +497,7 @@ app_renderer_resize(App *app, int x, int y, uint32_t width, uint32_t height)
 }
 
 static void
-app_renderer_update_image(App *app, int image_id, const unsigned char *data)
+app_renderer_update_image(App *app, int image_id, unsigned char *data)
 {
     return ffva_renderer_update_image(app->renderer, image_id, data);
 }
@@ -708,6 +714,12 @@ int vafastplayer_add_image(Fastplayer player, char *image_path, float x, float y
     return app_renderer_add_image(app, image_path, x, y, scale, rotation);
 }
 
+int vafastplayer_add_image_data(Fastplayer player, int w, int h, unsigned char *data)
+{
+    App *app = (App *)player;
+    return app_renderer_add_image_data(app, w, h, data);
+}
+
 int vafastplayer_add_text(Fastplayer player, const char* font, const char *text, int font_size, float x, float y)
 {
     App *app = (App *)player;
@@ -768,7 +780,7 @@ void vafastplayer_set_size(Fastplayer player, int x_p, int y_p, uint32_t width_p
     app->resize_h = height_p;
 }
 
-void vafastplayer_update_image(Fastplayer player, int image_id, const unsigned char *data)
+void vafastplayer_update_image(Fastplayer player, int image_id, unsigned char *data)
 {
     App *app = (App *)player;
     app_renderer_update_image(app, image_id, data);

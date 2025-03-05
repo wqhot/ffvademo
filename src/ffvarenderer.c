@@ -196,6 +196,15 @@ int ffva_renderer_load_image(FFVARenderer *rnd, const char *image_path, float x,
     return klass->renderer_load_image(rnd, image_path, x, y, scale, rotation);
 }
 
+int ffva_renderer_add_image_data(FFVARenderer *rnd, int width, int height, unsigned char *data)
+{
+    FFVARendererClass *klass;
+    if (!rnd)
+        return -1;
+    klass=FFVA_RENDERER_GET_CLASS(rnd);
+    return klass->renderer_add_image_data(rnd, width, height, data);
+}
+
 int ffva_renderer_load_text(FFVARenderer *rnd, const char *font_path, const char *text_context, int font_size, float x, float y)
 {
     FFVARendererClass *klass;
@@ -234,7 +243,7 @@ void ffva_renderer_resize(FFVARenderer *rnd, int x, int y, uint32_t width, uint3
     return;
 }
 
-void ffva_renderer_update_image(FFVARenderer *rnd, int image_id, const unsigned char *data)
+void ffva_renderer_update_image(FFVARenderer *rnd, int image_id, unsigned char *data)
 {
     FFVARendererClass *klass;
     if (!rnd)
