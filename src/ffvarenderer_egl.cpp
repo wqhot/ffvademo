@@ -40,6 +40,8 @@ extern "C"
 #endif
 }
 
+#include "libfcav/fcReceiver.h"
+
 #include <unordered_map>
 #include <locale.h>
 #include <ft2build.h>
@@ -877,7 +879,6 @@ image_overlay* image_overlay_create(const char* filename)
 
 image_overlay* image_overlay_create_yuv422(int width, int height, unsigned char *data)
 {
-    if (!data) return NULL;
     image_overlay* overlay = (image_overlay*)calloc(1, sizeof(image_overlay));
     overlay->width = width;
     overlay->height = height;
@@ -895,6 +896,41 @@ image_overlay* image_overlay_create_yuv422(int width, int height, unsigned char 
     overlay->crop_y1 = height;
     overlay->format = IMAGE_FORMAT_RGB565;
     printf("rgb565 data: %x\n", data);
+    return overlay;
+}
+
+image_overlay* image_overlay_create_fc(unsigned src_id, 
+                                        unsigned vid, 
+                                        unsigned width, 
+                                        unsigned height, 
+                                        unsigned colorbit, 
+                                        FCReceiver::ColorType colorType,
+                                        unsigned local_port_id = 0,
+                                        unsigned syn_flag = 0x40000000,
+                                        unsigned posx = 0,
+                                        unsigned posy = 0)
+{
+    image_overlay* overlay = (image_overlay*)calloc(1, sizeof(image_overlay));
+    FCReceiver *receiver = FCReceiver::getInstance();
+    overlay->width = width;
+    overlay->height = height;
+    overlay->scale = 1.0f;
+    overlay->program = NULL;
+    overlay->texture = 0;
+    // overlay->data = (unsigned char*)calloc(width * height * 3, sizeof(unsigned char));
+    overlay->pos_x = 0.5;
+    overlay->pos_y = 0.5;
+    overlay->rotation = 0.0f;
+    overlay->crop_x0 = 0;
+    overlay->crop_x1 = width;
+    overlay->crop_y0 = 0;
+    overlay->crop_y1 = height;
+    overlay->format = IMAGE_FORMAT_RGB565;
+    receiver->init(src_id, vid, width, height, colorbit, colorType, local_port_id, syn_flag, posx, posy);
+    receiver->start();
+    overlay->data = receiver->getDirectBuffer();
+
+    printf("rgb565 data: %x\n", overlay->data);
     return overlay;
 }
 
@@ -1159,6 +1195,8 @@ renderer_finalize(FFVARendererEGL *rnd)
 
     ffva_filter_freep(&rnd->mesa_filter);
     va_destroy_surface(rnd->va_display, &rnd->mesa_surface.id);
+
+    FCReceiver::getInstance()->stop();
 }
 
 static void image_overlay_set_transform(image_overlay* overlay, 
@@ -2061,6 +2099,32 @@ static int renderer_add_image_data(FFVARendererEGL *rnd, int width, int height, 
     return rnd->num_overlays - 1;
 }
 
+static int renderer_add_fc(FFVARendererEGL *rnd, unsigned src_id, 
+                            unsigned vid, 
+                            unsigned width, 
+                            unsigned height, 
+                            unsigned colorbit, 
+                            int colorType,
+                            unsigned local_port_id,
+                            unsigned syn_flag,
+                            unsigned posx,
+                            unsigned posy)
+{
+    if (!rnd) 
+        return -1;
+    rnd->overlays = (image_overlay **)realloc(rnd->overlays, (rnd->num_overlays + 1) * sizeof(image_overlay*));
+    image_overlay* overlay;
+    overlay = image_overlay_create_fc(src_id, vid, width, height, colorbit, (FCReceiver::ColorType)colorType, local_port_id, syn_flag, posx, posy);
+    if (!overlay)
+    {
+        av_log(rnd, AV_LOG_ERROR, "failed to create image overlay\n");
+        return -1;
+    }
+    rnd->overlays[rnd->num_overlays] = overlay;
+    rnd->num_overlays = rnd->num_overlays + 1;
+    return rnd->num_overlays - 1;
+}
+
 static int renderer_load_text(FFVARendererEGL *rnd, const char *font_path, const char *text_context, int font_size, float x, float y)
 {
     if (!rnd) 
@@ -2099,6 +2163,7 @@ ffva_renderer_egl_class(void)
         .put_surface    = (FFVARendererPutSurfaceFunc)renderer_put_surface,
         .renderer_load_image = (FFVARendererLoadImageFunc)renderer_load_image,
         .renderer_add_image_data = (FFVARendererAddImageData)renderer_add_image_data,
+        .renderer_add_fc = (FFVARendererAddFC)renderer_add_fc,
         .renderer_load_text = (FFVARendererLoadTextFunc)renderer_load_text,
         .renderer_adjust_image = (FFVARendererAdjustImageFunc)renderer_adjust_image,
         .renderer_set_center = (FFVARendererSetCenterFunc)renderer_set_center,

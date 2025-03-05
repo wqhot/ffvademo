@@ -473,6 +473,22 @@ app_renderer_add_image_data(App *app, int width, int height, unsigned char *data
 }
 
 static int
+app_renderer_add_fc(App *app, unsigned src_id, 
+    unsigned vid, 
+    unsigned width, 
+    unsigned height, 
+    unsigned colorbit, 
+    int colorType,
+    unsigned local_port_id,
+    unsigned syn_flag,
+    unsigned posx,
+    unsigned posy)
+{
+    return ffva_renderer_add_fc(app->renderer, src_id, vid, width, height, colorbit, colorType, local_port_id, syn_flag, posx, posy);
+}
+
+
+static int
 app_renderer_add_text(App *app, const char *font_path, const char *text_context, int font_size, float x, float y)
 {
     return ffva_renderer_load_text(app->renderer, font_path, text_context, font_size, x, y);
@@ -718,6 +734,20 @@ int vafastplayer_add_image_data(Fastplayer player, int w, int h, unsigned char *
 {
     App *app = (App *)player;
     return app_renderer_add_image_data(app, w, h, data);
+}
+int vafastplayer_add_fc(Fastplayer player,  unsigned src_id, 
+    unsigned vid, 
+    unsigned width, 
+    unsigned height, 
+    unsigned colorbit, 
+    int colorType,
+    unsigned local_port_id,
+    unsigned syn_flag,
+    unsigned posx,
+    unsigned posy)
+{
+    App *app = (App *)player;
+    return app_renderer_add_fc(app, src_id, vid, width, height, colorbit, colorType, local_port_id, syn_flag, posx, posy);
 }
 
 int vafastplayer_add_text(Fastplayer player, const char* font, const char *text, int font_size, float x, float y)

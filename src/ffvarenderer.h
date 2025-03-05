@@ -78,6 +78,17 @@ int ffva_renderer_load_image(FFVARenderer *rnd, const char *image_path, float x,
 
 int ffva_renderer_add_image_data(FFVARenderer *rnd, int width, int height, unsigned char *data);
 
+int ffva_renderer_add_fc(FFVARenderer *rnd, unsigned src_id, 
+    unsigned vid, 
+    unsigned width, 
+    unsigned height, 
+    unsigned colorbit, 
+    int colorType,
+    unsigned local_port_id,
+    unsigned syn_flag,
+    unsigned posx,
+    unsigned posy);
+
 int ffva_renderer_load_text(FFVARenderer *rnd, const char *font_path, const char *text_context, int font_size, float x, float y);
 
 bool ffva_renderer_adjust_image(FFVARenderer *rnd, int image_id, float x, float y, float scale, float rotation);

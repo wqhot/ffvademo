@@ -205,6 +205,24 @@ int ffva_renderer_add_image_data(FFVARenderer *rnd, int width, int height, unsig
     return klass->renderer_add_image_data(rnd, width, height, data);
 }
 
+int ffva_renderer_add_fc(FFVARenderer *rnd, unsigned src_id, 
+    unsigned vid, 
+    unsigned width, 
+    unsigned height, 
+    unsigned colorbit, 
+    int colorType,
+    unsigned local_port_id,
+    unsigned syn_flag,
+    unsigned posx,
+    unsigned posy)
+{
+    FFVARendererClass *klass;
+    if (!rnd)
+        return -1;
+    klass=FFVA_RENDERER_GET_CLASS(rnd);
+    return klass->renderer_add_fc(rnd, src_id, vid, width, height, colorbit, colorType, local_port_id, syn_flag, posx, posy);
+}
+
 int ffva_renderer_load_text(FFVARenderer *rnd, const char *font_path, const char *text_context, int font_size, float x, float y)
 {
     FFVARendererClass *klass;

@@ -36,6 +36,18 @@ FASTPLAYERAPI
 int vafastplayer_add_image_data(Fastplayer player, int w, int h, unsigned char *data);
 
 FASTPLAYERAPI
+int vafastplayer_add_fc(Fastplayer player,  unsigned src_id, 
+                                            unsigned vid, 
+                                            unsigned width, 
+                                            unsigned height, 
+                                            unsigned colorbit, 
+                                            int colorType,
+                                            unsigned local_port_id,
+                                            unsigned syn_flag,
+                                            unsigned posx,
+                                            unsigned posy);
+
+FASTPLAYERAPI
 int vafastplayer_add_text(Fastplayer player, const char* font, const char *text, int font_size_p, float x_u, float y_u);
 
 FASTPLAYERAPI
