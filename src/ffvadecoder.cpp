@@ -83,6 +83,7 @@ struct ffva_decoder_s {
     std::vector<uint8_t> rtsp_dec_buffer;
     AVCodecID rtsp_dec_codec_type_id;
     uint32_t first_code_flag;
+    bool format_inited;
 };
 
 /* ------------------------------------------------------------------------ */
@@ -335,6 +336,11 @@ static enum AVPixelFormat
 vaapi_get_format(AVCodecContext *avctx, const enum AVPixelFormat *pix_fmts)
 {
     FFVADecoder * const dec = (FFVADecoder *)avctx->opaque;
+    if (dec->format_inited)
+    {
+        return AV_PIX_FMT_VAAPI;
+    }
+    av_log(avctx, AV_LOG_INFO, "vaapi_get_format\n");
     VAProfile profiles[3];
     uint32_t i, num_profiles;
 
@@ -385,6 +391,7 @@ vaapi_get_format(AVCodecContext *avctx, const enum AVPixelFormat *pix_fmts)
         return AV_PIX_FMT_NONE;
     if (vaapi_init_decoder(dec, profiles[i], VAEntrypointVLD) < 0)
         return AV_PIX_FMT_NONE;
+    dec->format_inited = true;
     return AV_PIX_FMT_VAAPI;
 }
 
@@ -966,6 +973,7 @@ ffva_decoder_new(FFVADisplay *display)
         return NULL;
     if (decoder_init(dec, display) != 0)
         goto error;
+    dec->format_inited = false;
     return dec;
 
 error:
