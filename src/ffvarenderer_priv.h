@@ -44,6 +44,7 @@ typedef bool (*FFVARendererPutSurfaceFunc)(FFVARenderer *rnd, FFVASurface *s,
 typedef bool (*FFVARendererWindowcloseFunc)(FFVARenderer *rnd);
 typedef int (*FFVARendererLoadImageFunc)(FFVARenderer *rnd, const char *image_path, float x, float y, float scale, float rotate);
 typedef int (*FFVARendererAddImageData)(FFVARenderer *rnd, int width, int height, unsigned char *data);
+typedef int (*FFVARendererAddFC)(FFVARenderer *, unsigned, unsigned, unsigned , unsigned , unsigned , int ,unsigned ,unsigned ,unsigned ,unsigned);
 typedef int (*FFVARendererLoadTextFunc)(FFVARenderer *rnd, const char *font_path, const char *text, int font_size, float x, float y);
 typedef bool (*FFVARendererAdjustImageFunc)(FFVARenderer *rnd, int image_id, float x, float y, float scale, float rotate);
 typedef void (*FFVARendererSetCenterFunc)(FFVARenderer *rnd, float x, float y);
@@ -72,6 +73,7 @@ struct ffva_renderer_class_s {
     FFVARendererWindowcloseFunc widow_close;
     FFVARendererLoadImageFunc renderer_load_image;
     FFVARendererAddImageData renderer_add_image_data;
+    FFVARendererAddFC renderer_add_fc;
     FFVARendererLoadTextFunc renderer_load_text;
     FFVARendererAdjustImageFunc renderer_adjust_image;
     FFVARendererSetCenterFunc renderer_set_center;

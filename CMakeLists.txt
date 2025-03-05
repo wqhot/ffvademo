@@ -45,6 +45,7 @@ add_definitions(-DUSE_VA_VPP)
 # add_definitions(-DUSE_GLES_VERSION=1)
 
 add_subdirectory(ext/live)
+add_subdirectory(src/libfcav)
 
 set(live555Includes
 ${live555_SOURCE_DIR}/BasicUsageEnvironment/include
@@ -112,6 +113,7 @@ target_link_libraries(${target_name}
    ssl
    crypto
    freetype
+   libfcav
 )
 
 if (PLATFORM STREQUAL "ARM")
