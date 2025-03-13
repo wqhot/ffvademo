@@ -99,4 +99,6 @@ void ffva_renderer_resize(FFVARenderer *rnd, int x, int y, uint32_t width, uint3
 
 void ffva_renderer_update_image(FFVARenderer *rnd, int image_id, unsigned char *data);
 
+bool ffva_renderer_set_always_on_top(FFVARenderer *rnd, bool always_on_top);
+
 #endif /* FFVA_RENDERER_H */

@@ -50,6 +50,7 @@ typedef bool (*FFVARendererAdjustImageFunc)(FFVARenderer *rnd, int image_id, flo
 typedef void (*FFVARendererSetCenterFunc)(FFVARenderer *rnd, float x, float y);
 typedef void (*FFVARendererResizeFunc)(FFVARenderer *rnd, int x, int y, uint32_t width, uint32_t height);
 typedef void (*FFVARendererUpdateImageFunc)(FFVARenderer *rnd, int image_id, unsigned char *data);
+typedef bool (*FFVARendererSetAlwaysAboveFunc)(FFVARenderer *rnd, bool always_above);
 
 struct ffva_renderer_s {
     const void *klass;
@@ -79,6 +80,7 @@ struct ffva_renderer_class_s {
     FFVARendererSetCenterFunc renderer_set_center;
     FFVARendererResizeFunc renderer_resize;
     FFVARendererUpdateImageFunc renderer_update_image;
+    FFVARendererSetAlwaysAboveFunc renderer_set_always_above;
 };
 
 DLL_HIDDEN

@@ -57,13 +57,16 @@ FASTPLAYERAPI
 void vafastplayer_crop_video(Fastplayer player, float crop_lb_x_u, float crop_lb_y_u, float crop_rt_x_u, float crop_rt_y_u);
 
 FASTPLAYERAPI
-void vafastplayer_set_center(Fastplayer player, float x_u, float y_u);
+void vafastplayer_set_scope_center(Fastplayer player, float x_u, float y_u);
 
 FASTPLAYERAPI
 void vafastplayer_set_size(Fastplayer player, int x_p, int y_p, uint32_t width_p, uint32_t height_p);
 
 FASTPLAYERAPI
 void vafastplayer_update_image(Fastplayer player, int image_id, unsigned char *data);
+
+FASTPLAYERAPI
+bool vafastplayer_set_smallbox(Fastplayer player, bool always_on_top);
 
 // FASTPLAYERAPI
 // bool vafastplayer_adjust_text(Fastplayer player, int text_id, const char *text, float x, float y);

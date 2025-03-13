@@ -12,6 +12,7 @@ arm_build/
 ext/ffmpeg_aarch64/
 ext/openssl_aarch64/
 ext/gl_aarch64/
+.cache/*
 *.o
 
 *.log
