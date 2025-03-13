@@ -70,6 +70,8 @@ struct ffva_renderer_x11_s {
     bool is_fullscreen;
     bool is_fullscreen_changed;
     pthread_mutex_t mutex;
+    bool is_always_on_top;
+    bool is_always_ont_top_changed;
 };
 
 static const uint32_t x11_event_mask = (
@@ -246,6 +248,13 @@ error_create_window:
     return false;
 }
 
+static bool
+renderer_set_always_on_top(FFVARendererX11 *rnd, bool enable) {
+    rnd->is_always_on_top = enable;
+    rnd->is_always_ont_top_changed = true;
+    return true;
+}
+
 static void
 window_destroy(FFVARendererX11 *rnd)
 {
@@ -300,6 +309,29 @@ renderer_get_size(FFVARendererX11 *rnd, uint32_t *width_ptr,
         if (!success)
             return false;
     }
+    if (rnd->is_always_ont_top_changed)
+    { 
+        Atom net_wm_state = XInternAtom(rnd->display, "_NET_WM_STATE", False);
+        Atom above_state = XInternAtom(rnd->display, "_NET_WM_STATE_ABOVE", False);
+        XEvent xev;
+
+        if (net_wm_state == None || above_state == None)
+            return false;
+
+        xev.type = ClientMessage;
+        xev.xclient.window = rnd->window;
+        xev.xclient.message_type = net_wm_state;
+        xev.xclient.format = 32;
+        xev.xclient.data.l[0] = rnd->is_always_on_top ? 1 /* _NET_WM_STATE_ADD */ : 0 /* _NET_WM_STATE_REMOVE */;
+        xev.xclient.data.l[1] = above_state;
+        xev.xclient.data.l[2] = 0;
+
+        XSendEvent(rnd->display, RootWindow(rnd->display, rnd->screen), False,
+                SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+        // XSync(rnd->display, False);
+        rnd->is_always_ont_top_changed = false;
+    }
+
     #if 0
     XWindowAttributes window_attrs;
     int revert_to=0;
@@ -573,6 +605,7 @@ ffva_renderer_x11_class(void)
         .put_surface    = (FFVARendererPutSurfaceFunc)renderer_put_surface,
         .widow_close    = (FFVARendererWindowcloseFunc)render_window_close,
         .renderer_resize = (FFVARendererResizeFunc)renderer_resize,
+        .renderer_set_always_above = (FFVARendererSetAlwaysAboveFunc)renderer_set_always_on_top,
     };
     return &g_class;
 }

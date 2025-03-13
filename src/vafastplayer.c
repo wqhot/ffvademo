@@ -518,6 +518,12 @@ app_renderer_update_image(App *app, int image_id, unsigned char *data)
     return ffva_renderer_update_image(app->renderer, image_id, data);
 }
 
+static bool
+app_renderer_set_always_on_top(App *app, bool always_on_top)
+{
+    return ffva_renderer_set_always_on_top(app->renderer, always_on_top);
+}
+
 static int
 app_render_frame(App *app, FFVADecoderFrame *dec_frame)
 {
@@ -778,7 +784,7 @@ void vafastplayer_crop_video(Fastplayer player, float crop_start_x_u, float crop
     }
 }
 
-void vafastplayer_set_center(Fastplayer player, float x_u, float y_u)
+void vafastplayer_set_scope_center(Fastplayer player, float x_u, float y_u)
 {
     App *app = (App *)player;
     app_renderer_set_center(app, x_u, y_u);
@@ -814,6 +820,13 @@ void vafastplayer_update_image(Fastplayer player, int image_id, unsigned char *d
 {
     App *app = (App *)player;
     app_renderer_update_image(app, image_id, data);
+}
+
+bool
+vafastplayer_set_smallbox(Fastplayer player, bool always_on_top)
+{
+    App *app = (App *)player;
+    return app_renderer_set_always_on_top(app, always_on_top);
 }
 
 int vafastplayer_start(Fastplayer player)

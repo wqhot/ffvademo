@@ -99,7 +99,7 @@ void FCReceiver::start()
 void FCReceiver::recvFrame()
 {
     char *grp_ids = getenv("FP_FC_GRPID");
-    char *vids = getenv("FP_FC_GRPID");
+    char *vids = getenv("FP_FC_VID");
 
     unsigned grp_id = myatoi(grp_ids);
     FCReceiver::getInstance()->vid = myatoi(vids);
@@ -122,7 +122,7 @@ void FCReceiver::recvFrame()
     printf("group id = 0x%x, vid = %d, res_sig = 0x%x\n", grp_id, FCReceiver::getInstance()->vid, res_sig);
     printf("port id = 0x%x\n", FCReceiver::getInstance()->local_port_id);
 
-    // common_Initial(0,0,0,0,0); //TODO
+    common_Initial(8,8192,3,4,3840); //TODO
     common_ExitGrp(grp_id, FCReceiver::getInstance()->local_port_id);
     common_AddGrp(grp_id, FCReceiver::getInstance()->local_port_id);
 

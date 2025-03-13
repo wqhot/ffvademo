@@ -816,6 +816,7 @@ decoder_run(FFVADecoder *dec)
             presentationTime.tv_sec = packet.pts / 1000000;
             presentationTime.tv_usec = packet.pts % 1000000;
             double timestamp = (double)packet.pts * time_base;
+            usleep(33 * 1000);
             // if (timestamp <= 0)
             // {
             //     usleep(30 * 1000);

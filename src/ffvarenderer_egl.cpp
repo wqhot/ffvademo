@@ -1330,11 +1330,17 @@ renderer_set_size(FFVARendererEGL *rnd, uint32_t width, uint32_t height)
 static void
 renderer_resize(FFVARendererEGL *rnd, int x, int y, uint32_t width, uint32_t height)
 {
-    av_log(rnd, AV_LOG_ERROR, "egl renderer_resize ------------------------------\n");
     if (!rnd->native_renderer)
         return;
     ffva_renderer_resize(rnd->native_renderer, x, y, width, height);
     return;
+}
+
+static bool
+renderer_set_always_on_top(FFVARendererEGL *rnd, bool enable) {
+    if (!rnd->native_renderer)
+        return false;
+    return ffva_renderer_set_always_on_top(rnd->native_renderer, enable);
 }
 
 static void
@@ -2221,6 +2227,7 @@ ffva_renderer_egl_class(void)
         .renderer_set_center = (FFVARendererSetCenterFunc)renderer_set_center,
         .renderer_resize = (FFVARendererResizeFunc)renderer_resize,
         .renderer_update_image = (FFVARendererUpdateImageFunc)update_image_overlay_texture,
+        .renderer_set_always_above = (FFVARendererSetAlwaysAboveFunc)renderer_set_always_on_top,
     };
     return &g_class;
 }

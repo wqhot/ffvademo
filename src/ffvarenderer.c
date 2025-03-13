@@ -236,7 +236,7 @@ bool ffva_renderer_adjust_image(FFVARenderer *rnd, int image_id, float x, float 
 {
     FFVARendererClass *klass;
     if (!rnd)
-        return -1;
+        return false;
     klass=FFVA_RENDERER_GET_CLASS(rnd);
     return klass->renderer_adjust_image(rnd, image_id, x, y, scale, rotation);
 }
@@ -245,7 +245,7 @@ void ffva_renderer_set_center(FFVARenderer *rnd, float x, float y)
 {
     FFVARendererClass *klass;
     if (!rnd)
-        return -1;
+        return;
     klass=FFVA_RENDERER_GET_CLASS(rnd);
     klass->renderer_set_center(rnd, x, y);
     return;
@@ -255,7 +255,7 @@ void ffva_renderer_resize(FFVARenderer *rnd, int x, int y, uint32_t width, uint3
 {
     FFVARendererClass *klass;
     if (!rnd)
-        return -1;
+        return;
     klass=FFVA_RENDERER_GET_CLASS(rnd);
     klass->renderer_resize(rnd, x, y, width, height);
     return;
@@ -265,8 +265,21 @@ void ffva_renderer_update_image(FFVARenderer *rnd, int image_id, unsigned char *
 {
     FFVARendererClass *klass;
     if (!rnd)
-        return -1;
+        return;
     klass=FFVA_RENDERER_GET_CLASS(rnd);
     klass->renderer_update_image(rnd, image_id, data);
     return;
+}
+
+bool ffva_renderer_set_always_on_top(FFVARenderer *rnd, bool enable)
+{
+    FFVARendererClass *klass;
+    if (!rnd)
+        return false;
+    klass=FFVA_RENDERER_GET_CLASS(rnd);
+    if (!klass)
+    {
+        printf("Error: get kclass\n");
+    }
+    return klass->renderer_set_always_above(rnd, enable);
 }
